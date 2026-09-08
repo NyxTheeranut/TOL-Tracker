@@ -260,8 +260,13 @@ function writeTab_(name, header, rows) {
   // plain number written there gets reinterpreted as a date serial value on
   // read (this actually happened: "installs" landed in "mtime"'s old slot
   // and came back as a 1902 timestamp instead of 897). clearFormats() resets
-  // every cell to Automatic first, so no earlier schema version's
-  // formatting can ever bleed into a differently-shaped column again.
+  // every cell to "Automatic" first -- but Automatic still means "Sheets
+  // guesses from context," and that guess demonstrably still misfired here
+  // even post-reset. So every column below gets an EXPLICIT format instead
+  // of being left to Automatic: "@" (plain text) for TEXT_COLUMNS, "0.####"
+  // (plain number) for everything else -- no ambiguity left for Sheets to
+  // guess wrong about, regardless of what any earlier schema version's
+  // column layout happened to leave behind.
   sheet.clearFormats();
 
   var allRows = [header].concat(rows);
@@ -270,14 +275,9 @@ function writeTab_(name, header, rows) {
     return;
   }
   var range = sheet.getRange(1, 1, allRows.length, header.length);
-  // Text-format ID-shaped columns BEFORE writing (see TEXT_COLUMNS) --
-  // everything else stays a real number so sum/sort/filter work natively in
-  // the Sheet, which is the whole point of normalizing this in the first
-  // place. setNumberFormat must run before setValues, not after.
   header.forEach(function (colName, idx) {
-    if (TEXT_COLUMNS.indexOf(colName) !== -1) {
-      sheet.getRange(1, idx + 1, allRows.length, 1).setNumberFormat("@");
-    }
+    var fmt = TEXT_COLUMNS.indexOf(colName) !== -1 ? "@" : "0.####";
+    sheet.getRange(1, idx + 1, allRows.length, 1).setNumberFormat(fmt);
   });
   range.setValues(allRows);
   sheet.setFrozenRows(1);
