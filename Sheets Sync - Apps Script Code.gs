@@ -253,6 +253,16 @@ function writeTab_(name, header, rows) {
   var sheet = ss.getSheetByName(name);
   if (!sheet) sheet = ss.insertSheet(name);
   sheet.clearContents();
+  // clearContents() only wipes VALUES, not per-cell formatting -- if the
+  // schema's column order ever changes (as it did when "label" was removed
+  // from Months), a later column can silently inherit a stale "Date" format
+  // left over from whatever column USED to occupy that position, and a
+  // plain number written there gets reinterpreted as a date serial value on
+  // read (this actually happened: "installs" landed in "mtime"'s old slot
+  // and came back as a 1902 timestamp instead of 897). clearFormats() resets
+  // every cell to Automatic first, so no earlier schema version's
+  // formatting can ever bleed into a differently-shaped column again.
+  sheet.clearFormats();
 
   var allRows = [header].concat(rows);
   if (!allRows.length || !header.length) {
