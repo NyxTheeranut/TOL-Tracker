@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
 Pushes the TOL Install Tracker's aggregated data into the Google Sheet this
-project's Apps Script reads from -- one JSON blob, chunked across rows in the
-"Data" tab (a Sheets cell caps at 50,000 characters; this payload runs
-several MB) -- so the hosted page never needs a local rebuild, just this sync.
+project's Apps Script reads from -- normalized across real tabs with real
+columns (District, Channel, Buildings, ...), readable and auditable directly
+in Sheets, matching PakKret Territory Explorer / Route Planner -- so the
+hosted page never needs a local rebuild, just this sync.
 
 Run this any time a fresh TOL_*.txt / BB_CURRENT_MTH.txt export lands in
 TOL/Data/ -- same trigger as running aggregate_bb.py locally, just pushed to
@@ -12,6 +13,12 @@ the Sheet instead of (or as well as) written to a local HTML file.
 This reuses aggregate_bb.py's build_output() directly -- the exact same
 aggregation the local "BB Current Month Tracker.html" is built from -- so the
 two never drift into computing installs/registrations differently.
+sheet_schema.flatten() then decomposes that nested output into the flat
+tables actually written to the Sheet; see that module's docstring for the
+full schema and why (the Apps Script side reconstructs the nested shape back
+from those tables -- see its reconstructPayload_, a hand-ported mirror of
+sheet_schema.reconstruct(), which this repo's own test proves lossless
+against real data).
 """
 import json
 import sys
@@ -23,6 +30,7 @@ HERE = Path(__file__).resolve().parent
 DASHBOARD_DIR = HERE.parent
 sys.path.insert(0, str(DASHBOARD_DIR / "TOL"))
 import aggregate_bb  # noqa: E402  (path must be set up first)
+import sheet_schema  # noqa: E402
 
 # Keep this in sync with DEFAULT_SYNC_URL in index.html -- if you change one,
 # change the other.
@@ -53,12 +61,16 @@ def main():
     print(f"  {len(out['months'])} months   {total} installs   {total_reg} registrations   "
           f"{out['meta']['totalBuildings']} buildings")
 
-    json_str = json.dumps(out, ensure_ascii=False, separators=(",", ":"))
-    print(f"Payload size: {len(json_str) / 1e6:.2f} MB")
+    tabs = sheet_schema.flatten(out)
+    total_rows = sum(len(t["rows"]) for t in tabs.values())
+    print(f"Flattened into {len(tabs)} tabs, {total_rows} rows total:")
+    for name, t in tabs.items():
+        print(f"  {name:<20} {len(t['rows']):>6} rows")
 
     payload = json.dumps({
-        "action": "syncBbData", "payload": json_str, "secret": sync_secret,
-    }).encode("utf-8")
+        "action": "syncBbData", "tabs": tabs, "secret": sync_secret,
+    }, ensure_ascii=False).encode("utf-8")
+    print(f"Upload size: {len(payload) / 1e6:.2f} MB")
     req = urllib.request.Request(
         SYNC_URL, data=payload, method="POST",
         headers={"Content-Type": "text/plain;charset=utf-8"},
@@ -82,7 +94,7 @@ def main():
         )
 
     if result.get("ok"):
-        print(f"Done -- {result.get('bytes')} bytes synced across {result.get('chunks')} chunks.")
+        print(f"Done -- {result.get('rows')} rows synced across {result.get('tabs')} tabs.")
     else:
         raise SystemExit(f"Upload failed: {result.get('error')}")
 
