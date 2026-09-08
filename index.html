@@ -141,16 +141,18 @@
         display: flex; align-items: center; justify-content: space-between;
         gap: 16px; flex-wrap: wrap;
       }
-      .brand { display: flex; align-items: center; gap: 11px; }
+      .brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
       .bars-icon { display: flex; align-items: flex-end; gap: 2px; height: 17px; }
       .bars-icon i { display: block; width: 3.5px; border-radius: 1px; background: var(--accent-mark); }
       .bars-icon i:nth-child(1) { height: 7px; opacity: 0.5; }
       .bars-icon i:nth-child(2) { height: 12px; opacity: 0.75; }
       .bars-icon i:nth-child(3) { height: 17px; }
+      .brand > div { min-width: 0; }
       .brand h1 { font-size: 16px; font-weight: 600; color: var(--topbar-fg); }
       .brand .sub {
         font-size: 11px; margin-top: 1px; color: rgba(255, 255, 255, 0.5);
         font-family: "IBM Plex Mono", monospace; letter-spacing: -0.01em;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       }
       .topbar-right { display: flex; align-items: center; gap: 14px; }
       .topbar .meta {
@@ -390,7 +392,7 @@
       .top-tab .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--line-2); }
       .top-tab.active .dot { background: var(--accent-mark); }
 
-      .sortbtns { display: flex; align-items: center; gap: 6px; }
+      .sortbtns { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; row-gap: 8px; }
       /* .sortbtns' own display:flex otherwise wins the cascade over the UA
          [hidden]{display:none} rule (author styles beat UA styles on a tie). */
       #statusFilter[hidden] { display: none; }
@@ -542,7 +544,10 @@
          Kept LAST in the sheet: these share specificity with the base rules
          above, so they only win by source order. */
       @media (max-width: 1000px) {
-        .tiles { grid-template-columns: repeat(2, 1fr); }
+        /* minmax(0, 1fr), not bare 1fr -- a plain 1fr track won't shrink
+           below its content's intrinsic width, so two tiles' worth of
+           value/label text could exceed the viewport instead of fitting. */
+        .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .g-2, .g-hero { grid-template-columns: 1fr; }
         .hero-sep { display: none; }
       }
@@ -554,7 +559,11 @@
         .hero-value { font-size: 38px; }
         .hero-right { min-width: 0; }
         .card { padding: 15px 14px; }
-        .months { grid-template-columns: repeat(2, 1fr); }
+        /* minmax(0, 1fr), not bare 1fr -- a plain 1fr track won't shrink
+           below its content's intrinsic width (the classic grid-overflow
+           gotcha), so two cards' worth of number/label content could exceed
+           the viewport instead of actually fitting two per row. */
+        .months { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .mcard .mval { font-size: 23px; }
         #bldgTable td.rowbar { min-width: 180px; }
         .drow, .crow { grid-template-columns: minmax(64px, auto) 1fr minmax(38px, auto); gap: 8px; }
