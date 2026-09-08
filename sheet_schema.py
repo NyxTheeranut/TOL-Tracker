@@ -40,9 +40,23 @@ BuildingsBreakdown  one row per (mode, building, channel, specialChannel,
                   them too would be redundant, bigger, and a second place
                   they could drift out of sync with the leaves.
 """
+import calendar
 from collections import defaultdict
 
 STATUS_ORDER = ["Connect", "Pending", "Cancel", "Un-Complete", "Other"]
+
+
+def label_from_key(key):
+    """"202603" -> "March 2026". Not stored in the Months tab -- it's 100%
+    derivable from key, and storing it hit a real Sheets gotcha: a
+    human-readable string like "March 2026" gets silently auto-detected and
+    converted to an actual date value on write (setNumberFormat("@") should
+    prevent this and reliably did for every OTHER at-risk column, but not
+    this one in practice), so reading it back handed a JS Date object
+    instead of the string. Deriving it fresh on both sides sidesteps that
+    entirely rather than continuing to fight Sheets' auto-formatting."""
+    y, m = int(key[:4]), int(key[4:6])
+    return f"{calendar.month_name[m]} {y}"
 
 
 def _mode_key(suffix_label):
@@ -113,7 +127,7 @@ def flatten(out):
                   meta["matchedCount"], meta["matchRateVillages"]]],
     }
 
-    months_header = ["key", "label", "short", "days", "elapsedDays", "partial", "file", "mtime",
+    months_header = ["key", "short", "days", "elapsedDays", "partial", "file", "mtime",
                       "installs", "dupes", "otherStatus", "nonKpiConnect", "ga", "revenue", "target",
                       "installsReg", "gaReg", "revenueReg"]
     for s in STATUS_ORDER:
@@ -121,7 +135,7 @@ def flatten(out):
     months_rows = []
     daily_rows = []
     for m in out["months"]:
-        row = [m["key"], m["label"], m["short"], m["days"], m["elapsedDays"], m["partial"], m["file"], m["mtime"],
+        row = [m["key"], m["short"], m["days"], m["elapsedDays"], m["partial"], m["file"], m["mtime"],
                m["installs"], m["dupes"], m["otherStatus"], m["nonKpiConnect"],
                m["totals"]["ga"], m["totals"]["revenue"], m["totals"]["target"],
                m["installsReg"], m["totalsReg"]["ga"], m["totalsReg"]["revenue"]]
@@ -275,7 +289,7 @@ def reconstruct(tabs):
     for row in tabs["Months"]["rows"]:
         r = dict(zip(tabs["Months"]["header"], row))
         m = {
-            "key": r["key"], "label": r["label"], "short": r["short"], "days": r["days"],
+            "key": r["key"], "label": label_from_key(r["key"]), "short": r["short"], "days": r["days"],
             "elapsedDays": r["elapsedDays"], "partial": r["partial"], "file": r["file"], "mtime": r["mtime"],
             "installs": r["installs"], "dupes": r["dupes"], "otherStatus": r["otherStatus"], "nonKpiConnect": r["nonKpiConnect"],
             "totals": {"ga": r["ga"], "revenue": r["revenue"], "target": r["target"]},

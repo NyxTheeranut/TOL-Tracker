@@ -90,13 +90,21 @@ var TAB_NAMES = [
 var STATUS_ORDER = ["Connect", "Pending", "Cancel", "Un-Complete", "Other"];
 // Columns that must stay plain text -- Sheets otherwise auto-detects a
 // numeric-looking string as a real number (stripping leading zeros), or a
-// human-readable string as a DATE ("March 2026" silently became an actual
-// date value, and reconstructPayload_ got a JS Date object back instead of
-// the string -- exactly what happened to "label" before this list included
-// it), silently corrupting either way. Text columns like district/channel
-// names are never date-or-numeric-looking, so this only needs to cover
-// ID-shaped and date-ish-looking values specifically.
-var TEXT_COLUMNS = ["key", "month", "bid", "file", "label", "short", "mtime"];
+// human-readable string as a DATE, silently corrupting either way. Text
+// columns like district/channel names are never date-or-numeric-looking, so
+// this only needs to cover ID-shaped and date-ish-looking values
+// specifically. ("label", e.g. "March 2026", isn't stored at all -- see
+// labelFromKey_ below -- specifically because setNumberFormat("@") did NOT
+// reliably stop Sheets auto-converting it to a real date on write, unlike
+// every other column here; deriving it from "key" sidesteps that entirely.)
+var TEXT_COLUMNS = ["key", "month", "bid", "file", "short", "mtime"];
+
+var MONTH_NAMES_ = ["", "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"];
+function labelFromKey_(key) {
+  var y = String(key).substring(0, 4), m = parseInt(String(key).substring(4, 6), 10);
+  return MONTH_NAMES_[m] + " " + y;
+}
 
 function doPost(e) {
   try {
@@ -286,7 +294,7 @@ function reconstructPayload_(tabs) {
   var monthsOrder = [];
   rowObjects_(tabs.Months).forEach(function (r) {
     var m = {
-      key: r.key, label: r.label, short: r.short, days: r.days,
+      key: r.key, label: labelFromKey_(r.key), short: r.short, days: r.days,
       elapsedDays: r.elapsedDays, partial: r.partial, file: r.file, mtime: r.mtime,
       installs: r.installs, dupes: r.dupes, otherStatus: r.otherStatus, nonKpiConnect: r.nonKpiConnect,
       totals: { ga: r.ga, revenue: r.revenue, target: r.target },
