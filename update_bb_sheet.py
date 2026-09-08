@@ -26,7 +26,7 @@ import aggregate_bb  # noqa: E402  (path must be set up first)
 
 # Keep this in sync with DEFAULT_SYNC_URL in index.html -- if you change one,
 # change the other.
-SYNC_URL = "REPLACE_WITH_YOUR_APPS_SCRIPT_WEB_APP_URL"
+SYNC_URL = "https://script.google.com/macros/s/AKfycbxKW_yaYY4B2O3nsX_12Wgzpg_QWOUWS5HOiMZROUMSGrVqUWTwiHsRjNPcyNapelj-/exec"
 
 SYNC_SECRET_FILE = DASHBOARD_DIR / "Config" / "bb_sync_secret.txt"
 
