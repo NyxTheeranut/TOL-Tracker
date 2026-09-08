@@ -1,0 +1,1796 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BB Current Month Tracker — Pak Kret</title>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* ── tokens ───────────────────────────────────────────────────────────
+         Light is the base definition; dark redefines only these same tokens,
+         under BOTH the OS media query and an explicit [data-theme] stamp. */
+      :root {
+        color-scheme: light;
+        --ink: #121a2b;
+        --ink-2: #47516180;
+        --text-2: #55606f;
+        --text-3: #7b8695;
+        --page: #eef1f5;
+        --panel: #ffffff;
+        --panel-2: #f6f8fa;
+        --line: #e3e8ef;
+        --line-2: #eef1f5;
+
+        --accent: #12897f; /* UI chrome */
+        --accent-mark: #0d8f83; /* data marks — validated C>=0.10 */
+        --accent-soft: #e2f2f0;
+        --accent-ink: #0b6b63;
+
+        /* categorical — reference slots 1-3, validated all-pairs */
+        --s1: #2a78d6;
+        --s2: #eb6834;
+        --s3: #1baf7a;
+        /* status — reserved, always with icon/label */
+        --st-good: #0ca30c;
+        --st-warn: #fab219;
+        --st-serious: #ec835a;
+        --st-crit: #d03b3b;
+        --st-good-soft: #e6f6e6;
+        --st-warn-soft: #fdf3e0;
+        --st-crit-soft: #fbe9e9;
+
+        --grid: #eceff4;
+        --topbar-bg: #121a2b;
+        --topbar-fg: #ffffff;
+        --shadow: 0 1px 2px rgba(18, 26, 43, 0.04), 0 4px 12px rgba(18, 26, 43, 0.04);
+        --radius: 14px;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:where(:not([data-theme="light"])) {
+          color-scheme: dark;
+          --ink: #f2f5f9;
+          --ink-2: #8b95a480;
+          --text-2: #a9b3c1;
+          --text-3: #7d8794;
+          --page: #0e1014;
+          --panel: #16181d;
+          --panel-2: #1c1f26;
+          --line: #272b33;
+          --line-2: #202430;
+
+          --accent: #2ba79c;
+          --accent-mark: #14b8a6;
+          --accent-soft: #14312f;
+          --accent-ink: #6fd3c7;
+
+          --s1: #3987e5;
+          --s2: #d95926;
+          --s3: #199e70;
+          --st-good-soft: #122a14;
+          --st-warn-soft: #2e2410;
+          --st-crit-soft: #2e1616;
+
+          --grid: #232830;
+          --topbar-bg: #05070a;
+          --topbar-fg: #f2f5f9;
+          --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 14px rgba(0, 0, 0, 0.3);
+        }
+      }
+      :root[data-theme="dark"] {
+        color-scheme: dark;
+        --ink: #f2f5f9;
+        --ink-2: #8b95a480;
+        --text-2: #a9b3c1;
+        --text-3: #7d8794;
+        --page: #0e1014;
+        --panel: #16181d;
+        --panel-2: #1c1f26;
+        --line: #272b33;
+        --line-2: #202430;
+        --accent: #2ba79c;
+        --accent-mark: #14b8a6;
+        --accent-soft: #14312f;
+        --accent-ink: #6fd3c7;
+        --s1: #3987e5;
+        --s2: #d95926;
+        --s3: #199e70;
+        --st-good-soft: #122a14;
+        --st-warn-soft: #2e2410;
+        --st-crit-soft: #2e1616;
+        --grid: #232830;
+        --topbar-bg: #05070a;
+        --topbar-fg: #f2f5f9;
+        --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 14px rgba(0, 0, 0, 0.3);
+      }
+
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; }
+      body {
+        background: var(--page);
+        color: var(--ink);
+        font-family: "Inter", system-ui, -apple-system, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      h1, h2, h3 { font-family: "Space Grotesk", system-ui, sans-serif; margin: 0; letter-spacing: -0.015em; }
+      .mono, .num { font-family: "IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+      button { font-family: inherit; cursor: pointer; }
+      :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+      code {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.92em;
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+        padding: 0.5px 4px;
+        border-radius: 4px;
+      }
+
+      /* ── header ─────────────────────────────────────────────────────────── */
+      .topbar {
+        position: sticky; top: 0; z-index: 40;
+        background: var(--topbar-bg);
+        color: var(--topbar-fg);
+        padding: 12px 28px;
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 16px; flex-wrap: wrap;
+      }
+      .brand { display: flex; align-items: center; gap: 11px; }
+      .bars-icon { display: flex; align-items: flex-end; gap: 2px; height: 17px; }
+      .bars-icon i { display: block; width: 3.5px; border-radius: 1px; background: var(--accent-mark); }
+      .bars-icon i:nth-child(1) { height: 7px; opacity: 0.5; }
+      .bars-icon i:nth-child(2) { height: 12px; opacity: 0.75; }
+      .bars-icon i:nth-child(3) { height: 17px; }
+      .brand h1 { font-size: 16px; font-weight: 600; color: var(--topbar-fg); }
+      .brand .sub {
+        font-size: 11px; margin-top: 1px; color: rgba(255, 255, 255, 0.5);
+        font-family: "IBM Plex Mono", monospace; letter-spacing: -0.01em;
+      }
+      .topbar-right { display: flex; align-items: center; gap: 14px; }
+      .topbar .meta {
+        font-family: "IBM Plex Mono", monospace; font-size: 11px;
+        color: rgba(255, 255, 255, 0.62); text-align: right; line-height: 1.45;
+      }
+      .theme-btn {
+        background: rgba(255, 255, 255, 0.09); border: 1px solid rgba(255, 255, 255, 0.16);
+        color: rgba(255, 255, 255, 0.85); border-radius: 8px;
+        width: 30px; height: 30px; font-size: 13px; line-height: 1;
+        display: flex; align-items: center; justify-content: center; flex: none;
+      }
+      .theme-btn:hover { background: rgba(255, 255, 255, 0.16); }
+
+      .wrap { max-width: 1240px; margin: 0 auto; padding: 26px 28px 72px; }
+
+      /* ── section rhythm ─────────────────────────────────────────────────── */
+      .section { margin-top: 40px; }
+      .section:first-of-type { margin-top: 0; }
+      .section-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+      .section-head .eyebrow {
+        font-family: "IBM Plex Mono", monospace; font-size: 10.5px; font-weight: 600;
+        letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-ink);
+        background: var(--accent-soft); padding: 3px 8px; border-radius: 5px; flex: none;
+      }
+      .section-head h2 { font-size: 17px; font-weight: 600; }
+      .section-head .rule { flex: 1; height: 1px; background: var(--line); }
+
+      /* ── cards ──────────────────────────────────────────────────────────── */
+      .card {
+        background: var(--panel); border: 1px solid var(--line);
+        border-radius: var(--radius); padding: 18px 20px; box-shadow: var(--shadow);
+      }
+      .card + .card, .grid + .card, .card + .grid, .grid + .grid { margin-top: 14px; }
+      /* ...but that spacing is for cards STACKED vertically. Inside a grid the
+         cards sit side by side, and the sibling margin pushed the second one 14px
+         down, so paired cards never lined up. */
+      .grid > .card + .card { margin-top: 0; }
+      .card h3 { font-size: 14.5px; font-weight: 600; }
+      .card-sub { font-size: 12px; color: var(--text-2); margin-top: 4px; line-height: 1.55; }
+      .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+      .grid { display: grid; gap: 14px; }
+      /* Grid and flex children default to min-width:auto, so a wide table inside
+         inflates its card past the viewport instead of scrolling within it. */
+      .grid > *, .hero > *, .card, .section { min-width: 0; }
+      .g-2 { grid-template-columns: 1fr 1fr; }
+      .g-hero { grid-template-columns: 1.55fr 1fr; }
+
+      /* ── hero ───────────────────────────────────────────────────────────── */
+      .hero {
+        background: var(--panel); border: 1px solid var(--line);
+        border-radius: var(--radius); box-shadow: var(--shadow);
+        padding: 22px 24px; display: flex; gap: 30px; align-items: stretch; flex-wrap: wrap;
+      }
+      .hero-figure { flex: none; min-width: 168px; }
+      .hero-label {
+        font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase;
+        color: var(--text-3); font-family: "IBM Plex Mono", monospace;
+      }
+      .hero-value {
+        font-family: "Space Grotesk", sans-serif; font-size: 46px; font-weight: 700;
+        line-height: 1.02; letter-spacing: -0.03em; margin-top: 6px;
+      }
+      .hero-note { font-size: 12.5px; color: var(--text-2); margin-top: 7px; }
+      .hero-sep { width: 1px; background: var(--line); flex: none; }
+      .hero-right { flex: 1; min-width: 260px; display: flex; flex-direction: column; }
+      .hero-right .hero-label { margin-bottom: 8px; }
+      .hero-spark { width: 100%; height: auto; margin-top: auto; }
+
+      .meter { margin-top: 14px; }
+      .meter-track {
+        height: 8px; border-radius: 99px; background: var(--panel-2);
+        border: 1px solid var(--line); overflow: hidden; position: relative;
+      }
+      .meter-fill { height: 100%; border-radius: 99px; }
+      .meter-legend {
+        display: flex; justify-content: space-between; gap: 10px; margin-top: 7px;
+        font-size: 11.5px; color: var(--text-2); font-family: "IBM Plex Mono", monospace;
+        flex-wrap: wrap;
+      }
+      .meter-legend > span:last-child { white-space: nowrap; }
+
+      /* ── stat tiles ─────────────────────────────────────────────────────── */
+      .tiles { display: grid; gap: 12px; grid-template-columns: repeat(4, 1fr); }
+      .tile {
+        background: var(--panel); border: 1px solid var(--line);
+        border-radius: 12px; padding: 14px 16px; box-shadow: var(--shadow);
+      }
+      .tile .label {
+        font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+        color: var(--text-3); font-family: "IBM Plex Mono", monospace;
+      }
+      .tile .value {
+        font-family: "Space Grotesk", sans-serif; font-size: 25px; font-weight: 700;
+        line-height: 1.12; letter-spacing: -0.02em; margin-top: 7px;
+      }
+      .tile .sub { font-size: 11.5px; color: var(--text-2); margin-top: 5px; line-height: 1.45; }
+      .v-good { color: var(--st-good); }
+      .v-warn { color: #a8760c; }
+      :root[data-theme="dark"] .v-warn { color: var(--st-warn); }
+      @media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) .v-warn { color: var(--st-warn); } }
+      .v-crit { color: var(--st-crit); }
+
+      /* ── data notes (collapsed) ─────────────────────────────────────────── */
+      details.notes {
+        background: var(--panel); border: 1px solid var(--line);
+        border-left: 3px solid var(--accent); border-radius: 10px; margin-top: 14px;
+      }
+      details.notes > summary {
+        cursor: pointer; list-style: none; padding: 11px 16px;
+        font-size: 12.5px; font-weight: 500; color: var(--text-2);
+        display: flex; align-items: center; gap: 9px;
+      }
+      details.notes > summary::-webkit-details-marker { display: none; }
+      details.notes > summary::after { content: "▸"; margin-left: auto; color: var(--text-3); font-size: 11px; }
+      details.notes[open] > summary::after { content: "▾"; }
+      details.notes > summary:hover { color: var(--ink); }
+      .notes-tag {
+        font-family: "IBM Plex Mono", monospace; font-size: 9.5px; font-weight: 600;
+        letter-spacing: 0.07em; background: var(--accent-soft); color: var(--accent-ink);
+        padding: 3px 7px; border-radius: 5px;
+      }
+      .notes-body {
+        padding: 2px 16px 16px 16px; font-size: 12.5px; line-height: 1.65; color: var(--text-2);
+        border-top: 1px solid var(--line-2); margin-top: 2px; padding-top: 12px;
+      }
+      .notes-body p { margin: 0 0 10px 0; }
+      .notes-body p:last-child { margin-bottom: 0; }
+      .notes-body strong { color: var(--ink); font-weight: 600; }
+
+      /* ── charts ─────────────────────────────────────────────────────────── */
+      svg.chart { width: 100%; display: block; overflow: visible; }
+      .gridline { stroke: var(--grid); stroke-width: 1; }
+      .axis-label { fill: var(--text-3); font-size: 10px; font-family: "IBM Plex Mono", monospace; }
+      .axis-strong { fill: var(--text-2); font-size: 10.5px; font-family: "IBM Plex Mono", monospace; font-weight: 500; }
+      .mark { cursor: pointer; }
+      .mark:hover { opacity: 0.82; }
+
+      .legend { display: flex; gap: 13px; flex-wrap: wrap; font-size: 11.5px; color: var(--text-2); }
+      .legend .item { display: flex; align-items: center; gap: 6px; }
+      .legend .sw { width: 9px; height: 9px; border-radius: 2.5px; flex: none; }
+
+      #tooltip {
+        position: fixed; pointer-events: none; z-index: 100; opacity: 0;
+        transition: opacity 0.08s ease; max-width: 260px;
+        background: var(--ink); color: var(--page);
+        border-radius: 9px; padding: 9px 11px;
+        font-family: "IBM Plex Mono", monospace; font-size: 11.5px; line-height: 1.55;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+      }
+      :root[data-theme="dark"] #tooltip { background: #2a2f38; color: #f2f5f9; }
+      @media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) #tooltip { background: #2a2f38; color: #f2f5f9; } }
+      #tooltip .t-title { font-family: "Inter", sans-serif; font-weight: 600; margin-bottom: 3px; font-size: 12px; }
+      #tooltip .t-dim { opacity: 0.66; }
+
+      /* ── tables ─────────────────────────────────────────────────────────── */
+      /* table-layout:fixed -- the default "auto" measures every cell's natural
+         content width (including deeply nested drill-down rows) before sizing
+         columns, so one long name anywhere in the table narrows the numeric
+         columns on EVERY row. Fixed layout sizes columns once, from explicit
+         widths below, and clips overflow instead. */
+      table.dtable { width: 100%; min-width: 640px; table-layout: fixed; border-collapse: separate; border-spacing: 0; font-size: 12.5px; }
+      table.dtable th.num, table.dtable td.num { width: 84px; }
+      #bldgTable th:nth-child(2), #bldgTable td:nth-child(2) { width: 132px; }
+      /* bldgTable has the most fixed-width columns (District + up to 12 month
+         cols + Total) of any .dtable -- give it a higher floor so the name
+         column keeps breathing room instead of getting squeezed toward 0 on
+         a narrow window; .table-scroll below scrolls horizontally past that. */
+      #bldgTable { min-width: 960px; }
+      table.dtable th {
+        text-align: left; font-size: 10px; font-weight: 600; letter-spacing: 0.05em;
+        text-transform: uppercase; color: var(--text-3);
+        padding: 9px 12px; border-bottom: 1px solid var(--line);
+        font-family: "IBM Plex Mono", monospace; white-space: nowrap;
+      }
+      table.dtable td { padding: 8px 12px; border-bottom: 1px solid var(--line-2); vertical-align: middle; }
+      table.dtable tbody tr:last-child td { border-bottom: none; }
+      table.dtable td.num, table.dtable th.num {
+        text-align: right; font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+      table.dtable td.num { color: var(--text-2); }
+      table.dtable td.num.lead { color: var(--ink); font-weight: 500; }
+      tbody tr:hover > td { background: var(--panel-2); }
+
+      .table-scroll { max-height: 460px; overflow: auto; border: 1px solid var(--line); border-radius: 11px; }
+      .table-flat, .table-scroll { -webkit-overflow-scrolling: touch; }
+      .table-scroll thead th { position: sticky; top: 0; background: var(--panel); z-index: 2; }
+      .table-flat { border: 1px solid var(--line); border-radius: 11px; overflow-x: auto; }
+
+      .rowbar { position: relative; }
+      .rowbar .fill {
+        position: absolute; left: 0; top: 3px; bottom: 3px;
+        background: var(--accent-soft); border-radius: 5px; z-index: 0;
+      }
+      .rowbar .name {
+        position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 7px;
+        max-width: 100%; flex-wrap: wrap; row-gap: 3px;
+      }
+      .rowbar .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      #bldgTable td.rowbar { min-width: 260px; }
+
+      .pill {
+        display: inline-block; padding: 2px 7px; border-radius: 20px;
+        font-size: 10.5px; font-weight: 600; font-family: "IBM Plex Mono", monospace;
+        white-space: nowrap; flex: none;
+      }
+      .pill.good { background: var(--st-good-soft); color: var(--st-good); }
+      .pill.warn { background: var(--st-warn-soft); color: #a8760c; }
+      :root[data-theme="dark"] .pill.warn { color: var(--st-warn); }
+      @media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) .pill.warn { color: var(--st-warn); } }
+      .pill.crit { background: var(--st-crit-soft); color: var(--st-crit); }
+      .pill.muted { background: var(--panel-2); color: var(--text-3); border: 1px solid var(--line); }
+      .pill.home { background: var(--accent-soft); color: var(--accent-ink); }
+      .pill.rate { background: var(--panel-2); color: var(--text-2); border: 1px solid var(--line); font-weight: 500; }
+      .pill.top { background: #f5c344; color: #5c4400; }
+      :root[data-theme="dark"] .pill.top { background: #a8760c; color: #fff3d6; }
+      @media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) .pill.top { background: #a8760c; color: #fff3d6; } }
+      .pill.dist { font-family: "Inter", sans-serif; font-weight: 600; }
+      .bid {
+        font-family: "IBM Plex Mono", monospace; font-size: 10.5px; color: var(--text-3);
+        white-space: nowrap;
+      }
+
+      /* ── top-level Connect/Register tabs ───────────────────────────────────
+         Ported from the Pak Kret Territory Explorer's .top-tabs so the two
+         dashboards read as one family: bold pill buttons, dark-fill active
+         state, sitting as the first thing in the page rather than tucked into
+         the topbar corner. */
+      .top-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+      .top-tab {
+        background: var(--panel); border: 1px solid var(--line); padding: 11px 22px;
+        border-radius: 12px; font-size: 14px; font-weight: 700; color: var(--text-2);
+        display: flex; align-items: center; gap: 8px; cursor: pointer; font-family: inherit;
+      }
+      .top-tab.active { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+      .top-tab .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--line-2); }
+      .top-tab.active .dot { background: var(--accent-mark); }
+
+      .sortbtns { display: flex; align-items: center; gap: 6px; }
+      /* .sortbtns' own display:flex otherwise wins the cascade over the UA
+         [hidden]{display:none} rule (author styles beat UA styles on a tie). */
+      #statusFilter[hidden] { display: none; }
+      .sortlabel { font-size: 11px; color: var(--text-3); margin-right: 2px; }
+      .sortbtns button {
+        border: 1px solid var(--line); background: var(--panel); color: var(--text-2);
+        font-size: 11.5px; padding: 5px 10px; border-radius: 7px; font-family: inherit;
+      }
+      .sortbtns button.on { background: var(--ink); border-color: var(--ink); color: var(--panel); font-weight: 500; }
+
+      /* ── insights ───────────────────────────────────────────────────────── */
+      .insight-list { display: flex; flex-direction: column; gap: 8px; }
+      .insight {
+        display: flex; gap: 11px; align-items: flex-start;
+        font-size: 13px; line-height: 1.6; padding: 12px 14px;
+        border-radius: 10px; background: var(--panel-2); border: 1px solid var(--line-2);
+      }
+      .insight .ic {
+        width: 17px; height: 17px; border-radius: 5px; margin-top: 1px; flex: none;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 10px; font-weight: 700; color: #fff;
+      }
+      .insight b { font-family: "IBM Plex Mono", monospace; font-weight: 600; color: var(--ink); }
+
+      /* ── toolbar ────────────────────────────────────────────────────────── */
+      .toolbar { display: flex; gap: 10px; align-items: center; margin: 12px 0; flex-wrap: wrap; }
+      .search {
+        flex: 1; min-width: 200px; padding: 8px 12px;
+        border: 1px solid var(--line); border-radius: 9px;
+        font-family: inherit; font-size: 12.5px;
+        background: var(--panel-2); color: var(--ink);
+      }
+      .search::placeholder { color: var(--text-3); }
+      .search:focus { outline: none; border-color: var(--accent); background: var(--panel); }
+      .count { font-size: 11.5px; color: var(--text-3); font-family: "IBM Plex Mono", monospace; white-space: nowrap; }
+
+      /* ── expand tree ────────────────────────────────────────────────────── */
+      tr.expandable { cursor: pointer; }
+      .tog {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 15px; height: 15px; border-radius: 4px; flex: none;
+        background: var(--panel-2); border: 1px solid var(--line);
+        color: var(--text-2); font-size: 10px; font-weight: 700; line-height: 1;
+        position: relative; z-index: 1;
+      }
+      tr.expandable:hover .tog { background: var(--accent); border-color: var(--accent); color: #fff; }
+      .tog.on { background: var(--ink); border-color: var(--ink); color: var(--panel); }
+      tr.bd > td { background: var(--panel-2); }
+      tr.bd:hover > td { background: var(--line-2); }
+      .bd-cell { display: flex; align-items: center; gap: 7px; position: relative; }
+      .bd-cell .bd-nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .bd-0 .bd-nm { font-weight: 600; color: var(--accent-ink); }
+      .bd-1 .bd-nm { font-weight: 500; color: var(--s1); }
+      .bd-2 .bd-nm { color: var(--text-2); }
+      .bd-3 .bd-nm { color: var(--text-3); }
+      .bd-rail {
+        position: absolute; left: 0; top: -8px; bottom: -8px; width: 1px;
+        background: var(--line); flex: none;
+      }
+
+      footer {
+        margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--line);
+        text-align: center; color: var(--text-3); font-size: 11px;
+        font-family: "IBM Plex Mono", monospace; line-height: 1.7;
+      }
+
+
+      /* ── month cards ────────────────────────────────────────────────────── */
+      .months { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); }
+      .mcard {
+        position: relative; text-align: left; background: var(--panel);
+        border: 1px solid var(--line); border-radius: 12px; padding: 13px 15px 12px;
+        box-shadow: var(--shadow); overflow: hidden; transition: border-color .12s, transform .12s;
+      }
+      .mcard::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px; background: var(--mc); }
+      .mcard:hover { transform: translateY(-1px); border-color: var(--mc); }
+      .mcard .mlabel {
+        font-family: "IBM Plex Mono", monospace; font-size: 10px; font-weight: 600;
+        letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-3);
+      }
+      .mcard .mval {
+        font-family: "Space Grotesk", sans-serif; font-size: 27px; font-weight: 700;
+        line-height: 1.1; letter-spacing: -0.025em; margin-top: 5px; color: var(--ink);
+      }
+      .mcard .msub { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+      .mcard[aria-pressed="true"] {
+        border-color: var(--ink); box-shadow: 0 0 0 1.5px var(--ink), var(--shadow);
+      }
+      .mcard[aria-pressed="true"] .mlabel { color: var(--mc); }
+
+      /* ── district / channel panels ──────────────────────────────────────── */
+      .drow { display: grid; grid-template-columns: minmax(90px, auto) 1fr minmax(44px, auto); gap: 12px; align-items: center; margin-bottom: 9px; }
+      .drow:last-child { margin-bottom: 0; }
+      .dname { font-size: 12.5px; color: var(--text-2); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .dtrack { height: 15px; border-radius: 5px; background: var(--grid); overflow: hidden; display: flex; }
+      .dseg { height: 100%; }
+      .dseg + .dseg { box-shadow: -2px 0 0 var(--panel); }
+      .dval { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; font-weight: 500; color: var(--ink); text-align: right; }
+
+      .crow { display: grid; grid-template-columns: minmax(96px, auto) 1fr minmax(44px, auto); gap: 12px; align-items: center; margin-bottom: 11px; }
+      .crow:last-child { margin-bottom: 0; }
+      .cname { font-size: 12.5px; font-weight: 500; text-align: right; white-space: nowrap; }
+      .ctrack { height: 22px; border-radius: 6px; background: var(--grid); position: relative; }
+      .cfill { height: 100%; border-radius: 6px; display: flex; align-items: center; justify-content: flex-end; padding-right: 7px; min-width: 3px; position: relative; }
+      .cpct { font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 700; color: #fff; white-space: nowrap; }
+      .cpct.out { position: absolute; left: 100%; margin-left: 7px; color: var(--text-2); }
+      .cval { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; color: var(--text-2); text-align: right; }
+
+      /* ── month-over-month movers ────────────────────────────────────────── */
+      /* The movers list holds at most MOVER_MAX rows. Reserve that height always,
+         so switching District (3 rows) to Dealer (8) doesn't resize the card and
+         shove everything below it down the page. */
+      #moverRows { min-height: calc(8 * 19px + 7 * 8px); }
+      .mvrow { display: grid; grid-template-columns: minmax(88px,1.1fr) 1fr 46px 62px; gap: 9px; align-items: center; margin-bottom: 8px; }
+      .mvrow:last-child { margin-bottom: 0; }
+      .mvname { font-size: 12.5px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .mvbar { display: flex; align-items: center; height: 13px; }
+      .mvneg, .mvpos { flex: 1; height: 100%; display: flex; }
+      .mvneg { justify-content: flex-end; border-right: 1px solid var(--line); padding-right: 1px; }
+      .mvpos { padding-left: 1px; }
+      .mvneg span, .mvpos span { display: block; height: 100%; border-radius: 3px; }
+      #moverRows .mv-empty {
+        display: flex; align-items: center; justify-content: center; height: 100%;
+        min-height: inherit; color: var(--text-3); font-size: 12.5px; text-align: center;
+      }
+      .mvval { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; font-weight: 600; text-align: right; }
+      .mvraw { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--text-3); text-align: right; white-space: nowrap; }
+
+      th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+      th.sortable:hover { color: var(--ink); }
+      th.sortable .sarrow { margin-left: 4px; font-size: 8.5px; vertical-align: 1px; }
+      th.sortable.sorted { color: var(--accent); }
+      .expbtn {
+        border: 1px solid var(--line); background: var(--panel); color: var(--text-2);
+        font-size: 11.5px; padding: 5px 10px; border-radius: 7px; font-family: inherit;
+        white-space: nowrap; flex: none;
+      }
+      .expbtn:hover { border-color: var(--accent); color: var(--accent); }
+      .empty-state {
+        text-align: center; padding: 26px 14px !important; color: var(--text-2); font-size: 12.5px;
+      }
+      .linkbtn {
+        border: 0; background: none; color: var(--accent); font-size: 12.5px;
+        text-decoration: underline; padding: 0 2px;
+      }
+      tr.expandable:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+      /* ── responsive ─────────────────────────────────────────────────────
+         Kept LAST in the sheet: these share specificity with the base rules
+         above, so they only win by source order. */
+      @media (max-width: 1000px) {
+        .tiles { grid-template-columns: repeat(2, 1fr); }
+        .g-2, .g-hero { grid-template-columns: 1fr; }
+        .hero-sep { display: none; }
+      }
+      @media (max-width: 620px) {
+        .wrap { padding: 20px 14px 56px; }
+        .topbar { padding: 10px 14px; }
+        .tiles { grid-template-columns: 1fr; }
+        .hero { padding: 18px 16px; gap: 20px; }
+        .hero-value { font-size: 38px; }
+        .hero-right { min-width: 0; }
+        .card { padding: 15px 14px; }
+        .months { grid-template-columns: repeat(2, 1fr); }
+        .mcard .mval { font-size: 23px; }
+        #bldgTable td.rowbar { min-width: 180px; }
+        .drow, .crow { grid-template-columns: minmax(64px, auto) 1fr minmax(38px, auto); gap: 8px; }
+        .mvrow { grid-template-columns: minmax(70px, 1fr) 1fr 40px 54px; gap: 7px; }
+        .toolbar { gap: 8px; }
+        .search { min-width: 0; }
+        .section-head h2 { font-size: 15.5px; }
+      }
+      @media (max-width: 620px) {
+        /* Stack the hero rather than squeezing the sparkline beside the figure. */
+        .hero { flex-direction: column; }
+        .hero-figure { min-width: 0; }
+        .hero-sep { display: none; }
+        .hero-spark { min-height: 96px; }
+      }
+
+      /* ── login gate ─────────────────────────────────────────────────────── */
+      .login-gate { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; background: var(--page); }
+      .login-card { width: 320px; max-width: calc(100% - 48px); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 34px 28px; text-align: center; }
+      .login-card h1 { font-size: 20px; font-weight: 700; margin: 16px 0 6px; color: var(--ink); }
+      .login-card h1 span { color: var(--accent); }
+      .login-card p { font-size: 13px; color: var(--text-3); margin: 0 0 22px; line-height: 1.5; }
+      .login-card .bars-icon { justify-content: center; }
+      #gsiButton { display: flex; justify-content: center; min-height: 40px; }
+      .login-status { margin-top: 14px; font-size: 12.5px; color: var(--text-3); line-height: 1.5; display: none; }
+      .login-status.error { color: var(--st-crit); }
+      .login-spinner { width: 20px; height: 20px; margin: 0 auto; border-radius: 50%; border: 2.5px solid var(--line); border-top-color: var(--accent); animation: spin 0.8s linear infinite; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      @media (prefers-reduced-motion: reduce) { .login-spinner { animation: none; } }
+    </style>
+  </head>
+  <body>
+    <div id="loginGate" class="login-gate">
+      <div class="login-card">
+        <div class="bars-icon"><i></i><i></i><i></i></div>
+        <h1>TOL Install <span>Tracker</span></h1>
+        <p>Sign in with your work Google account to view the tracker. Nothing loads until you're signed in.</p>
+        <div id="gsiButton"></div>
+        <div id="loginStatus" class="login-status"></div>
+      </div>
+    </div>
+
+    <div class="topbar">
+      <div class="brand">
+        <div class="bars-icon"><i></i><i></i><i></i></div>
+        <div>
+          <h1>TOL Install Tracker</h1>
+          <div class="sub" id="topbarSub">TrueOnline Broadband</div>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="meta" id="topbarMeta"></div>
+        <button class="theme-btn" id="themeBtn" title="Toggle light / dark" aria-label="Toggle light or dark theme">◐</button>
+      </div>
+    </div>
+
+    <div class="wrap">
+      <div class="section">
+        <div class="top-tabs" id="modeToggle">
+          <button class="top-tab active" data-mode="connect" title="Completed connections only (SOURCES = TOL-CONNECT)"><span class="dot"></span>Connect</button>
+          <button class="top-tab" data-mode="register" title="Every order booked, whatever it became -- connected, pending, cancelled or un-complete (SOURCES = TOL-REGISTER)"><span class="dot"></span>Register</button>
+        </div>
+        <div class="months" id="monthCards"></div>
+
+        <div class="sortbtns" id="statusFilter" hidden style="margin-top: 10px">
+          <span class="sortlabel">Status</span>
+        </div>
+
+        <div class="hero" style="margin-top: 14px">
+          <div class="hero-figure">
+            <div class="hero-label" id="heroLabel">Installs</div>
+            <div class="hero-value" id="heroGa"></div>
+            <div class="hero-note" id="heroNote"></div>
+            <div class="meter">
+              <div class="meter-track"><div class="meter-fill" id="heroMeter"></div></div>
+              <div class="meter-legend"><span id="heroMeterL"></span><span id="heroMeterR"></span></div>
+            </div>
+          </div>
+          <div class="hero-sep"></div>
+          <div class="hero-right">
+            <div class="hero-label"><span id="heroSparkLabel">Daily installs</span> · <span id="heroMonth"></span></div>
+            <svg class="chart hero-spark" id="sparkChart" viewBox="0 0 760 132"></svg>
+          </div>
+        </div>
+
+        <div class="tiles" id="tiles" style="margin-top: 14px"></div>
+
+        <details class="notes" id="dataNotes">
+          <summary><span class="notes-tag">DATA NOTES</span> <span id="notesSummary"></span></summary>
+          <div class="notes-body" id="notesBody"></div>
+        </details>
+      </div>
+
+      <div class="section">
+        <div class="section-head"><span class="eyebrow">Signal</span><h2>What stands out</h2><div class="rule"></div></div>
+        <div class="insight-list" id="insights"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-head"><span class="eyebrow">Breakdown</span><h2>Where the <span id="lblCameFrom">installs</span> came from</h2><div class="rule"></div></div>
+        <div class="grid g-2">
+          <div class="card">
+            <div class="card-head">
+              <div><h3>By district</h3><div class="card-sub"><span id="lblDistrictSub">Installs</span> by customer district</div></div>
+              <div class="legend" id="districtLegend"></div>
+            </div>
+            <div id="districtRows" style="margin-top: 14px"></div>
+          </div>
+          <div class="card">
+            <h3>Channel share</h3>
+            <div class="card-sub">Share of <span id="lblChannelSub">installs</span> by channel group</div>
+            <div id="channelRows" style="margin-top: 14px"></div>
+          </div>
+        </div>
+        <div class="grid g-hero">
+          <div class="card">
+            <div class="card-head">
+              <div><h3 id="lblDailyH3">Daily installs</h3><div class="card-sub" id="stackSub"></div></div>
+              <div class="legend" id="stackLegend"></div>
+            </div>
+            <svg class="chart" id="stackChart" viewBox="0 0 720 250" style="margin-top: 14px"></svg>
+          </div>
+          <div class="card">
+            <div class="card-head">
+              <div><h3>Month-over-month</h3><div class="card-sub" id="moversSub"></div></div>
+            </div>
+            <div class="toolbar" style="margin-top:10px">
+              <div class="sortbtns" id="moverDims">
+                <button data-dim="district" class="on">District</button>
+                <button data-dim="channel">Channel</button>
+                <button data-dim="subChannel">Sub-ch</button>
+                <button data-dim="supervisor">Dealer</button>
+              </div>
+              <div class="sortbtns" id="moverOrigin">
+                <span class="sortlabel">Sold by</span>
+                <button data-org="all" class="on" title="Every install, whoever sold it">All</button>
+                <button data-org="local" title="Sold by a dealer assigned to this cluster">Local</button>
+                <button data-org="import" title="Sold by a dealer assigned to another territory">Import</button>
+              </div>
+            </div>
+            <div id="moverRows"></div>
+          </div>
+        </div>
+        <div class="grid g-2">
+          <div class="card">
+            <div class="card-head">
+              <div><h3>Sub-channel</h3><div class="card-sub">Achieve% shown only where an individual target exists</div></div>
+              <button class="expbtn" data-export="subchannel" title="Download the rows as shown — current month, filter and sort">↓ CSV</button>
+            </div>
+            <div class="table-scroll" style="max-height: 400px; margin-top: 12px"><table class="dtable" id="subChannelTable"></table></div>
+          </div>
+          <div class="card">
+            <h3>Technology</h3>
+            <div class="card-sub" id="lblTechSub">Install technology on connected lines</div>
+            <svg class="chart" id="techChart" viewBox="0 0 460 190" style="margin-top: 10px"></svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head"><span class="eyebrow">Villages</span><h2>Active FTTH base × new <span id="lblVillagesH2">installs</span></h2><div class="rule"></div></div>
+        <div class="tiles" id="ftthTiles"></div>
+        <div class="card" style="margin-top: 14px">
+          <div class="card-head"><div><h3>Buildings</h3><div class="card-sub" id="bldgSub"></div></div></div>
+          <div class="toolbar">
+            <input class="search" id="bldgSearch" type="text" placeholder="Filter by building or district…" />
+            <span class="count" id="bldgCount"></span>
+            <button class="expbtn" data-export="buildings" title="Download the rows as shown — current month, filter and sort">↓ CSV</button>
+          </div>
+          <div class="table-scroll"><table class="dtable" id="bldgTable"></table></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head"><span class="eyebrow">Sellers</span><h2>Who sold into the cluster</h2><div class="rule"></div></div>
+        <div class="card">
+          <div class="card-head">
+            <div><h3>Dealer territory</h3><div class="card-sub" id="territorySub"></div></div>
+            <button class="expbtn" data-export="territory" title="Download the rows as shown — current month, filter and sort">↓ CSV</button>
+          </div>
+          <div class="table-flat" style="margin-top: 12px"><table class="dtable" id="dealerTerritoryTable"></table></div>
+        </div>
+        <div class="card">
+          <div class="card-head">
+            <div><h3>Top dealers</h3><div class="card-sub">Top 12 shown; export includes all</div></div>
+            <button class="expbtn" data-export="dealers" title="Download the rows as shown — current month, filter and sort">↓ CSV</button>
+          </div>
+          <div class="table-scroll" style="max-height: 400px; margin-top: 12px"><table class="dtable" id="dealerTable"></table></div>
+        </div>
+      </div>
+
+      <footer id="footerNote"></footer>
+    </div>
+
+    <div id="tooltip"></div>
+    <script>
+      function initApp(RAW) {
+
+        /* ── Connect / Register mode ──────────────────────────────────────────
+           Every breakdown table/chart on the page reads DATA.xxx (district,
+           channel, subChannel, dealerTerritory, supervisor, technology, villages)
+           and each month's m.installs/m.totals/m.daily -- never RAW directly. So
+           switching mode just needs to (a) point DATA at the Connect root or a
+           Register-shaped shadow root with the same keys, and (b) swap each
+           month's live installs/totals/daily fields in place. No render function
+           needs to know which mode is active. */
+        let MODE = "connect";
+        let REG_STATUS = "All"; // only meaningful in register mode
+        const REG_STATUSES = Object.keys(RAW.register.byStatus || {});
+        const REGISTER_ROOT = Object.assign({}, RAW, RAW.register);
+        function registerRootFor(status) {
+          return status === "All" ? REGISTER_ROOT : Object.assign({}, RAW, RAW.register.byStatus[status]);
+        }
+        RAW.months.forEach((m) => {
+          m.installsConnect = m.installs;
+          m.totalsConnect = m.totals;
+          m.dailyConnect = m.daily;
+        });
+        const METRIC = () => (MODE === "register" ? "registrations" : "installs");
+        const METRIC_CAP = () => (MODE === "register" ? "Registrations" : "Installs");
+        // Static section headers/labels that plain HTML can't make reactive on
+        // its own -- every other "installs" mention lives inside a render
+        // function and already goes through METRIC()/METRIC_CAP() each call.
+        function applyModeLabels() {
+          document.getElementById("heroLabel").textContent = METRIC_CAP();
+          document.getElementById("heroSparkLabel").textContent = "Daily " + METRIC();
+          document.getElementById("lblCameFrom").textContent = METRIC();
+          document.getElementById("lblDistrictSub").textContent = METRIC_CAP();
+          document.getElementById("lblChannelSub").textContent = METRIC();
+          document.getElementById("lblDailyH3").textContent = "Daily " + METRIC();
+          document.getElementById("lblTechSub").textContent =
+            MODE === "register" ? "Registration technology, whatever the order became" : "Install technology on connected lines";
+          document.getElementById("lblVillagesH2").textContent = METRIC();
+        }
+        // Builds the status-filter row once -- the label set is fixed (whatever
+        // statuses this cluster actually saw), only its visibility and which
+        // button is "on" change with mode/selection.
+        document.getElementById("statusFilter").insertAdjacentHTML(
+          "beforeend",
+          // Labels come from Python's fixed STATUS_LABELS set (Connect/Pending/
+          // Cancel/Un-Complete/Other), never free-text, so no esc() needed here --
+          // and esc() itself isn't defined yet at this point in script evaluation.
+          ["All"].concat(REG_STATUSES).map((s) =>
+            "<button data-status='" + s + "' class='" + (s === "All" ? "on" : "") + "'>" + s + "</button>"
+          ).join("")
+        );
+        function applyMode(mode, status) {
+          MODE = mode;
+          REG_STATUS = mode === "register" ? (status || "All") : "All";
+          document.getElementById("statusFilter").hidden = mode !== "register";
+          document.querySelectorAll("#statusFilter button").forEach((o) => o.classList.toggle("on", o.dataset.status === REG_STATUS));
+          RAW.months.forEach((m) => {
+            if (mode !== "register") {
+              m.installs = m.installsConnect;
+              m.totals = m.totalsConnect;
+              m.daily = m.dailyConnect;
+            } else if (REG_STATUS === "All") {
+              m.installs = m.installsReg || 0;
+              m.totals = m.totalsReg || { ga: 0, revenue: 0, target: 0 };
+              m.daily = m.dailyReg || [];
+            } else {
+              m.installs = (m.installsRegByStatus && m.installsRegByStatus[REG_STATUS]) || 0;
+              m.totals = (m.totalsRegByStatus && m.totalsRegByStatus[REG_STATUS]) || { ga: 0, revenue: 0, target: 0 };
+              m.daily = (m.dailyRegByStatus && m.dailyRegByStatus[REG_STATUS]) || [];
+            }
+          });
+          DATA = mode === "register" ? registerRootFor(REG_STATUS) : RAW;
+          applyModeLabels();
+          renderMonthCards();
+          renderNotesSummary();
+          renderAll();
+        }
+        // Rebuilding every table/chart is the heaviest thing this page does --
+        // doing it synchronously in the same task as the click would block the
+        // button's own "on" state from painting until it's done, so the toggle
+        // itself would look like it's the thing lagging. Two rAFs guarantee a
+        // paint has actually happened in between (one rAF can still land before
+        // the browser paints), so the pressed state shows immediately and the
+        // data catches up a frame later.
+        function applyModeDeferred(mode, status) {
+          requestAnimationFrame(() => requestAnimationFrame(() => applyMode(mode, status)));
+        }
+        document.querySelectorAll("#modeToggle button").forEach((b) =>
+          b.addEventListener("click", () => {
+            if (b.dataset.mode === MODE) return;
+            document.querySelectorAll("#modeToggle button").forEach((o) => o.classList.toggle("active", o.dataset.mode === b.dataset.mode));
+            applyModeDeferred(b.dataset.mode, "All");
+          })
+        );
+        document.addEventListener("click", (e) => {
+          const b = e.target.closest("#statusFilter button");
+          if (!b || b.dataset.status === REG_STATUS) return;
+          applyModeDeferred("register", b.dataset.status);
+        });
+
+        let DATA = RAW;
+
+        /* ── helpers ───────────────────────────────────────────────────────── */
+        const fmt = (n) => Math.round(n).toLocaleString("en-US");
+        const fmt1 = (n) => n.toLocaleString("en-US", { maximumFractionDigits: 1, minimumFractionDigits: 1 });
+        const money = (n) => "฿" + Math.round(n).toLocaleString("en-US");
+        const pct = (n) => (n * 100).toFixed(1) + "%";
+        const esc = (s) =>
+          String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+        const svgEl = (t, a) => {
+          const e = document.createElementNS("http://www.w3.org/2000/svg", t);
+          for (const k in a || {}) e.setAttribute(k, a[k]);
+          return e;
+        };
+        const txt = (a, s) => Object.assign(svgEl("text", a), { textContent: s });
+        function niceMax(v) {
+          if (v <= 0) return 10;
+          const mag = Math.pow(10, Math.floor(Math.log10(v)));
+          const n = v / mag;
+          for (const s of [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]) if (n <= s) return s * mag;
+          return 10 * mag;
+        }
+
+        /* ── month selection ───────────────────────────────────────────────
+           SEL is null for "all months", otherwise a month key. Every measure is
+           stored per month ({m:{"202608":{g,r}}}), so switching is a client-side
+           re-sum -- no reload, no second dataset. In Connect mode this counts
+           completed, KPI-qualifying installs only -- pending/cancelled orders
+           never appear. Register mode counts every booked order regardless of
+           outcome; see the Connect/Register toggle above. */
+        let SEL = null;
+        const MONTHS = DATA.months;
+        const MKEYS = MONTHS.map((m) => m.key);
+        const PROVINCE = DATA.meta.province;
+        const CLUSTER = PROVINCE.split(":").pop().trim();
+        const MCOLORS = ["var(--s1)", "var(--s2)", "var(--s3)", "var(--accent-mark)", "#9166cc"];
+        const mcolor = (k) => MCOLORS[MKEYS.indexOf(k) % MCOLORS.length];
+        const activeKeys = () => (SEL ? [SEL] : MKEYS);
+        const activeMonths = () => (SEL ? MONTHS.filter((m) => m.key === SEL) : MONTHS);
+        function sm(m, f) {
+          let t = 0;
+          for (const k of activeKeys()) if (m && m[k]) t += m[k][f] || 0;
+          return t;
+        }
+        const ga = (r) => sm(r.m, "g");
+        const periodLabel = () => (SEL ? MONTHS.find((m) => m.key === SEL).label : MONTHS.length + " months");
+        /* Elapsed days -- NOT calendar days. A mid-month export must not be averaged
+           over, or target-compared against, days that haven't happened yet. */
+        const elapsedDays = () => activeMonths().reduce((a, m) => a + m.elapsedDays, 0);
+        const anyPartial = () => activeMonths().some((m) => m.partial);
+        /* Target pro-rated to the elapsed portion of any in-progress month, so a
+           half-finished month isn't scored against a whole month's quota. */
+        function activeTarget() {
+          return activeMonths().reduce((a, m) => a + m.totals.target * (m.elapsedDays / m.days), 0);
+        }
+
+        const tooltip = document.getElementById("tooltip");
+        function showTip(e, title, rows) {
+          tooltip.innerHTML = '<div class="t-title">' + title + "</div>" + rows.map((r) => "<div>" + r + "</div>").join("");
+          tooltip.style.opacity = 1;
+          moveTip(e);
+        }
+        function moveTip(e) {
+          let x = e.clientX + 14, y = e.clientY + 14;
+          if (x + 270 > window.innerWidth) x = e.clientX - 274;
+          if (y + 130 > window.innerHeight) y = e.clientY - 130;
+          tooltip.style.left = x + "px";
+          tooltip.style.top = y + "px";
+        }
+        const hideTip = () => (tooltip.style.opacity = 0);
+        function hoverable(el, title, rows) {
+          el.addEventListener("mouseenter", (e) => showTip(e, title, rows));
+          el.addEventListener("mousemove", moveTip);
+          el.addEventListener("mouseleave", hideTip);
+        }
+        const cell = (e) => (e && e.g ? fmt(e.g) : "<span style='color:var(--text-3)'>—</span>");
+
+        document.addEventListener("click", (e) => {
+          const b = e.target.closest("[data-clear]");
+          if (!b) return;
+          const inp = document.getElementById(b.dataset.clear);
+          inp.value = "";
+          inp.dispatchEvent(new Event("input"));
+          inp.focus();
+        });
+
+        /* ── sortable tables ────────────────────────────────────────────────
+           One mechanism for every table: each declares its columns with a value
+           accessor, and the header cells become the sort control. State is kept per
+           table so a month switch or a search re-render preserves the chosen order. */
+        const SORTS = {};
+        const getSort = (id, def) => SORTS[id] || def;
+
+        function thead(id, cols, def) {
+          const st = getSort(id, def);
+          return "<thead><tr>" + cols.map((c) =>
+            "<th class='" + (c.num ? "num " : "") + "sortable" + (st.key === c.key ? " sorted" : "") +
+            "' data-st='" + id + "' data-sk='" + c.key + "' title='Sort by " + esc(c.label) + "'>" +
+            esc(c.label) + (st.key === c.key ? "<span class='sarrow'>" + (st.dir < 0 ? "\u25bc" : "\u25b2") + "</span>" : "") +
+            "</th>").join("") + "</tr></thead>";
+        }
+
+        function sortRows(id, rows, cols, def) {
+          const st = getSort(id, def);
+          const col = cols.find((c) => c.key === st.key) || cols.find((c) => c.key === def.key);
+          if (!col) return rows;
+          return rows.slice().sort((a, b) => {
+            const av = col.val(a), bv = col.val(b);
+            if (typeof av === "string" || typeof bv === "string")
+              return String(av).localeCompare(String(bv), "th") * st.dir;
+            return ((av || 0) - (bv || 0)) * st.dir;
+          });
+        }
+
+        // Header clicks are delegated, so tables can re-render freely without rewiring.
+        const RERENDER = {};
+        document.addEventListener("click", (e) => {
+          const th = e.target.closest("[data-sk]");
+          if (!th) return;
+          const id = th.dataset.st, key = th.dataset.sk, cur = SORTS[id];
+          // First click on a column sorts descending (most interesting first for counts);
+          // clicking the active column flips direction.
+          SORTS[id] = cur && cur.key === key ? { key: key, dir: -cur.dir } : { key: key, dir: -1 };
+          (RERENDER[id] || renderAll)();
+        });
+
+        /* ── CSV export ─────────────────────────────────────────────────────
+           Each table registers what it would export, so the file always matches
+           what is on screen right now -- current month, current filter, current sort. */
+        const EXPORTS = {};
+        function csvCell(v) {
+          const t = v == null ? "" : String(v);
+          return /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+        }
+        function downloadCSV(name, header, rows) {
+          const body = [header].concat(rows).map((r) => r.map(csvCell).join(",")).join("\r\n");
+          // Leading BOM so Excel reads the Thai column values as UTF-8 rather than mojibake.
+          const blob = new Blob(["\ufeff" + body], { type: "text/csv;charset=utf-8;" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = name;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
+        document.addEventListener("click", (e) => {
+          const b = e.target.closest("[data-export]");
+          if (!b) return;
+          const f = EXPORTS[b.dataset.export];
+          if (!f) return;
+          const { name, header, rows } = f();
+          const scope = (SEL ? MONTHS.find((m) => m.key === SEL).short : "ALL").toLowerCase();
+          downloadCSV("tol-" + name + "-" + scope + ".csv", header, rows);
+        });
+
+        /* ── theme ─────────────────────────────────────────────────────────── */
+        (function () {
+          const saved = localStorage.getItem("bbTheme");
+          if (saved) document.documentElement.setAttribute("data-theme", saved);
+          document.getElementById("themeBtn").addEventListener("click", () => {
+            const cur =
+              document.documentElement.getAttribute("data-theme") ||
+              (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+            const next = cur === "dark" ? "light" : "dark";
+            document.documentElement.setAttribute("data-theme", next);
+            localStorage.setItem("bbTheme", next);
+          });
+        })();
+
+        /* ── static chrome ─────────────────────────────────────────────────── */
+        /* Month cards + the topbar's running total are the only "chrome" pieces
+           that read m.installs, so unlike notesBody/footerNote below (which
+           document the Connect-side filter chain specifically and stay put),
+           these need to re-render on every mode switch. Click wiring is
+           delegated once so repeated regeneration can't pile up listeners. */
+        function renderMonthCards() {
+          const total = MONTHS.reduce((a, m) => a + m.installs, 0);
+          document.getElementById("topbarMeta").innerHTML =
+            MONTHS[0].short + "–" + MONTHS[MONTHS.length - 1].short + " " + MONTHS[0].label.split(" ").pop() +
+            "<br/>" + fmt(total) + " " + METRIC();
+          const cards = [{ key: null, label: "All months", val: total, sub: MONTHS.length + " months", c: "var(--accent-mark)", p: false }].concat(
+            MONTHS.map((m) => ({
+              key: m.key, label: m.label.replace(/ \d{4}$/, ""), val: m.installs,
+              sub: m.partial ? "day " + m.elapsedDays + " of " + m.days : METRIC(), c: mcolor(m.key), p: m.partial,
+            }))
+          );
+          document.getElementById("monthCards").innerHTML = cards
+            .map((c) =>
+              "<button class='mcard' data-key='" + (c.key || "") + "' aria-pressed='" + (c.key === SEL) +
+              "' style='--mc:" + c.c + "'><div class='mlabel'>" + esc(c.label) +
+              (c.p ? " <span style='color:var(--st-warn)'>◷</span>" : "") + "</div><div class='mval'>" +
+              fmt(c.val) + "</div><div class='msub'>" + c.sub + "</div></button>"
+            )
+            .join("");
+        }
+        document.addEventListener("click", (e) => {
+          const b = e.target.closest(".mcard");
+          if (!b) return;
+          SEL = b.getAttribute("data-key") || null;
+          document.querySelectorAll(".mcard").forEach((o) => o.setAttribute("aria-pressed", (o.getAttribute("data-key") || null) === SEL));
+          renderAll();
+        });
+
+        // The collapsed chip right under the hero -- worth keeping mode-aware even
+        // though the expanded methodology prose below it (notesBody) stays fixed
+        // to documenting the Connect-side filter chain specifically.
+        function renderNotesSummary() {
+          const dupes = MONTHS.reduce((a, m) => a + m.dupes, 0);
+          document.getElementById("notesSummary").innerHTML =
+            MODE === "register"
+              ? MONTHS.length + " monthly exports · <strong>SOURCES = TOL-REGISTER</strong>" +
+                (REG_STATUS === "All" ? ", any outcome" : ", status = <strong>" + REG_STATUS + "</strong>") + " · KPI-flagged only"
+              : MONTHS.length + " monthly exports · <strong>SOURCES = TOL-CONNECT</strong>, KPI installs only · " + fmt(dupes) + " duplicates excluded";
+        }
+
+        (function chrome() {
+          const meta = DATA.meta;
+          const dupes = MONTHS.reduce((a, m) => a + m.dupes, 0);
+          const other = MONTHS.reduce((a, m) => a + m.otherStatus, 0);
+          const nonKpi = MONTHS.reduce((a, m) => a + (m.nonKpiConnect || 0), 0);
+          document.getElementById("topbarSub").textContent = "TrueOnline Broadband · " + PROVINCE;
+          renderMonthCards();
+          renderNotesSummary();
+
+          document.getElementById("notesBody").innerHTML =
+            "<p><strong>What this counts — the exact filter chain.</strong> Every figure on this page survives four "
+            + "successive filters, in order:</p>"
+            + "<p style=\"padding-left:14px;border-left:2px solid var(--line);margin-left:2px\">"
+            + "<strong>1.</strong> <code>ACTUAL_TYPE = ACTUAL</code> — real orders, not target rows.<br/>"
+            + "<strong>2.</strong> <code>TDS_PROVINCE_CUST</code> = this cluster — the customer is physically here.<br/>"
+            + "<strong>3.</strong> <code>SOURCES = TOL-CONNECT</code> — the authoritative connect feed; nothing from "
+            + "<code>TOL-REGISTER</code> is counted (<strong>" + fmt(dupes) + " duplicate rows</strong> dropped). TOL-CONNECT "
+            + "holds <em>only</em> completed connections — no pending or cancelled order exists in it at all, which is why "
+            + "none appear anywhere on this page (" + fmt(other) + " such rows live in TOL-REGISTER and are ignored).<br/>"
+            + "<strong>4.</strong> <code>FLAG_KPI = KPI</code> — drops a further <strong>" + fmt(nonKpi) + "</strong> "
+            + "TOL-CONNECT rows (migrations, internal and data-only lines). These are genuine connections, but excluding them "
+            + "keeps installs like-for-like with the KPI target they are scored against; counting them would widen the "
+            + "numerator only and push vs-target past 100%.</p>" +
+            "<p><strong>Sources.</strong> " + MONTHS.map((m) => "<code>" + esc(m.file) + "</code> (" + m.label + ")").join(", ") +
+            ". Months are discovered from the folder automatically and their month read from the data itself, so adding one " +
+            "means dropping the export into <code>TOL/</code> and re-running <code>python3 TOL/aggregate_bb.py</code> — no code " +
+            "edit. The schema drifts between months (June carries 130 columns and CRLF line endings against 134 and LF later), " +
+            "so every field is read by column name, never position.</p>" +
+            "<p><strong>Scope.</strong> Filtered on <code>TDS_PROVINCE_CUST</code> — where the customer actually is — not the " +
+            "selling dealer's territory, which is what makes import selling visible. Targets are the exception: they carry no " +
+            "customer, so they're scoped by dealer territory instead, and are <strong>pro-rated by elapsed days</strong> for any " +
+            "month still in progress. District comes from the middle segment of <code>ORG_LEVEL_AA_NAME_CUST</code>.</p>" +
+            "<p><strong>Village matching.</strong> <code>" + esc(meta.ftthSourceFile) + "</code> (" + fmt(meta.ftthRowCount) +
+            " active ports, a single " + new Date(meta.ftthSourceMTime).toLocaleDateString("en-US", { dateStyle: "medium" }) +
+            " census — it has no monthly history) shares no key with the exports' <code>BUILDING_CODE</code>, so villages match " +
+            "by <strong>exact name only</strong> after normalising spacing and prefixes. That matches <strong>" +
+            meta.matchedCount + " of " + fmt(meta.totalVillages) + " villages (" + meta.matchRateVillages +
+            "%)</strong>; everything unmatched is listed separately rather than guessed at.</p>";
+
+          document.getElementById("footerNote").innerHTML =
+            MONTHS.map((m) => esc(m.file)).join(" · ") + " · " + esc(meta.ftthSourceFile) +
+            "<br/>Aggregated " + new Date(meta.generatedAt).toLocaleString("en-US") +
+            " · TDS_PROVINCE_CUST = “" + esc(PROVINCE) + "” · SOURCES = TOL-CONNECT · installs only";
+        })();
+
+        /* ── hero ──────────────────────────────────────────────────────────── */
+        function renderHero() {
+          const ms = activeMonths();
+          const gaT = ms.reduce((a, m) => a + m.totals.ga, 0);
+          const rev = ms.reduce((a, m) => a + m.totals.revenue, 0);
+          const tgt = activeTarget();
+          const partial = anyPartial();
+          document.getElementById("heroGa").textContent = fmt(gaT);
+          let note = money(rev) + " net RC" + (partial ? " · <span style='color:var(--st-warn)'>month in progress</span>" : "");
+          if (MODE === "register" && REG_STATUS !== "All") {
+            note += " · <span style='color:var(--text-3)'>showing " + REG_STATUS.toLowerCase() + " only</span>";
+          } else if (MODE === "register") {
+            // Registrations include every outcome; break down where they landed so
+            // the gap against the Connect-mode figure (completed only) is legible.
+            const funnel = {};
+            ms.forEach((m) => Object.entries(m.registerByStatus || {}).forEach(([st, n]) => (funnel[st] = (funnel[st] || 0) + n)));
+            const parts = Object.entries(funnel).sort((a, b) => b[1] - a[1]).map(([st, n]) => fmt(n) + " " + st.toLowerCase());
+            if (parts.length) note += " · " + parts.join(", ");
+          }
+          document.getElementById("heroNote").innerHTML = note;
+          document.getElementById("heroMonth").textContent = periodLabel();
+
+          const a = tgt > 0 ? gaT / tgt : null;
+          const col = a == null ? "var(--text-3)" : a >= 1 ? "var(--st-good)" : a >= 0.7 ? "var(--st-warn)" : "var(--st-crit)";
+          const mf = document.getElementById("heroMeter");
+          mf.style.width = Math.max(0, Math.min(1, a || 0)) * 100 + "%";
+          mf.style.background = col;
+          document.getElementById("heroMeterL").innerHTML =
+            "<span style='color:" + col + ";font-weight:600'>" + (a == null ? "—" : pct(a)) + "</span> of target" +
+            (partial ? " <span style='color:var(--text-3)'>(pro-rated)</span>" : "");
+          document.getElementById("heroMeterR").textContent = fmt(gaT) + " / " + fmt(tgt);
+
+          const pts = [];
+          ms.forEach((m) => m.daily.forEach((d) => pts.push({ m, d })));
+          const svg = document.getElementById("sparkChart");
+          svg.innerHTML = "";
+          const W = 760, H = 132, pad = 4;
+          const max = niceMax(Math.max(...pts.map((p) => p.d.ga), 1) * 1.1);
+          const X = (i) => (i / Math.max(pts.length - 1, 1)) * (W - pad * 2) + pad;
+          const Y = (v) => H - 14 - (v / max) * (H - 30);
+
+          let dLine = "";
+          pts.forEach((p, i) => (dLine += (i ? "L" : "M") + X(i).toFixed(1) + "," + Y(p.d.ga).toFixed(1)));
+          const dArea = dLine + "L" + X(pts.length - 1).toFixed(1) + "," + (H - 14) + "L" + X(0).toFixed(1) + "," + (H - 14) + "Z";
+
+          const defs = svgEl("defs");
+          const g = svgEl("linearGradient", { id: "sg", x1: "0", y1: "0", x2: "0", y2: "1" });
+          g.appendChild(svgEl("stop", { offset: "0%", "stop-color": "var(--accent-mark)", "stop-opacity": "0.26" }));
+          g.appendChild(svgEl("stop", { offset: "100%", "stop-color": "var(--accent-mark)", "stop-opacity": "0.02" }));
+          defs.appendChild(g);
+          svg.appendChild(defs);
+          svg.appendChild(svgEl("line", { x1: pad, x2: W - pad, y1: H - 14, y2: H - 14, class: "gridline" }));
+          svg.appendChild(svgEl("path", { d: dArea, fill: "url(#sg)" }));
+          svg.appendChild(svgEl("path", {
+            d: dLine, fill: "none", stroke: "var(--accent-mark)", "stroke-width": 2,
+            "stroke-linejoin": "round", "stroke-linecap": "round", "vector-effect": "non-scaling-stroke",
+          }));
+
+          if (ms.length > 1) {
+            let acc = 0;
+            ms.forEach((m, mi) => {
+              const start = acc;
+              acc += m.daily.length;
+              if (mi > 0)
+                svg.appendChild(svgEl("line", { x1: X(start - 0.5), x2: X(start - 0.5), y1: 2, y2: H - 14, stroke: "var(--line)", "stroke-width": 1, "stroke-dasharray": "2,3" }));
+              svg.appendChild(txt({ x: X(start + m.daily.length / 2), y: H - 1, class: "axis-label", "text-anchor": "middle" }, m.short));
+            });
+          } else {
+            [1, 8, 15, 22, 29].forEach((dd) => {
+              if (dd - 1 < pts.length) svg.appendChild(txt({ x: X(dd - 1), y: H - 1, class: "axis-label", "text-anchor": "middle" }, dd));
+            });
+          }
+
+          const bw = (W - pad * 2) / Math.max(pts.length, 1);
+          pts.forEach((p, i) => {
+            const hit = svgEl("rect", { x: X(i) - bw / 2, y: 0, width: bw, height: H, fill: "transparent", class: "mark" });
+            hoverable(hit, p.m.short + " " + p.d.day, [METRIC_CAP() + " <b>" + fmt(p.d.ga) + "</b>", "<span class='t-dim'>" + money(p.d.revenue) + "</span>"]);
+            svg.appendChild(hit);
+          });
+          const peak = pts.reduce((a, b) => (b.d.ga > a.d.ga ? b : a), pts[0]);
+          const pi = pts.indexOf(peak);
+          svg.appendChild(svgEl("circle", { cx: X(pi), cy: Y(peak.d.ga), r: 3.5, fill: "var(--accent-mark)", stroke: "var(--panel)", "stroke-width": 2 }));
+          svg.appendChild(txt({ x: Math.max(34, Math.min(X(pi), W - 34)), y: Y(peak.d.ga) - 8, class: "axis-strong", "text-anchor": "middle" }, "peak " + peak.d.ga));
+        }
+
+        /* ── tiles ─────────────────────────────────────────────────────────── */
+        function renderTiles() {
+          const ms = activeMonths();
+          const gaT = ms.reduce((a, m) => a + m.totals.ga, 0);
+          const rev = ms.reduce((a, m) => a + m.totals.revenue, 0);
+          const days = elapsedDays();
+          const terr = DATA.dealerTerritory.map((d) => ({ name: d.name, g: ga(d) })).filter((d) => d.g > 0);
+          const outG = terr.filter((d) => d.name !== PROVINCE).reduce((a, d) => a + d.g, 0);
+          const importShare = gaT ? outG / gaT : 0;
+          const dist = DATA.district.map((d) => ({ name: d.name, g: ga(d) })).filter((d) => d.g > 0).sort((a, b) => b.g - a.g);
+          const list = [
+            { label: "Net RC Revenue", value: money(rev), sub: "sum of NET_RC on " + METRIC() },
+            { label: "Avg " + METRIC_CAP() + " / Day", value: (gaT / Math.max(days, 1)).toFixed(1), sub: "over " + days + " elapsed days" },
+            { label: "Import Sales", value: pct(importShare), sub: fmt(outG) + " sold by outside territories", cls: importShare > 0.5 ? "v-warn" : "" },
+            { label: "Top District", value: dist.length ? esc(dist[0].name) : "—", sub: dist.length ? fmt(dist[0].g) + " " + METRIC() + " · " + pct(dist[0].g / gaT) : "" },
+          ];
+          document.getElementById("tiles").innerHTML = list
+            .map((x) => "<div class='tile'><div class='label'>" + x.label + "</div><div class='value " + (x.cls || "") +
+              "' style='" + (x.label === "Top District" ? "font-size:22px" : "") + "'>" + x.value + "</div><div class='sub'>" + x.sub + "</div></div>")
+            .join("");
+        }
+
+        /* ── insights ──────────────────────────────────────────────────────── */
+        function renderInsights() {
+          const out = [];
+          const ms = activeMonths();
+          const gaT = ms.reduce((a, m) => a + m.totals.ga, 0);
+
+          const dormant = DATA.subChannel.filter((s) => s.t && activeKeys().some((k) => s.t[k]) && ga(s) === 0);
+          if (dormant.length) {
+            const tot = dormant.reduce((a, s) => a + activeKeys().reduce((b, k) => b + (s.t[k] || 0), 0), 0);
+            out.push({
+              lvl: "crit",
+              html: "<b>" + dormant.length + " funded sub-channel" + (dormant.length > 1 ? "s" : "") +
+                "</b> produced zero " + METRIC() + " while carrying a target — " + dormant.slice(0, 4).map((s) => esc(s.name)).join(", ") +
+                " — leaving <b>" + fmt1(tot) + "</b> of quota unfulfilled.",
+            });
+          }
+
+          const terr = DATA.dealerTerritory.map((d) => ({ name: d.name, g: ga(d) })).filter((d) => d.g > 0);
+          const outG = terr.filter((d) => d.name !== PROVINCE).reduce((a, d) => a + d.g, 0);
+          const homeG = (terr.find((d) => d.name === PROVINCE) || { g: 0 }).g;
+          if (outG > 0)
+            out.push({
+              lvl: "warn",
+              html: "<b>" + pct(outG / (outG + homeG)) + " of " + METRIC() + "</b> were import sales — dealers assigned to another " +
+                "territory (" + fmt(outG) + " vs " + fmt(homeG) + " from the home team) across <b>" + (terr.length - 1) +
+                "</b> territories — worth checking whether that is deliberate coverage or leakage.",
+            });
+
+          if (!SEL && MONTHS.length > 1) {
+            const a = MONTHS[MONTHS.length - 2], b = MONTHS[MONTHS.length - 1];
+            if (!b.partial && a.totals.ga) {
+              const d = (b.totals.ga - a.totals.ga) / a.totals.ga;
+              if (Math.abs(d) >= 0.03)
+                out.push({
+                  lvl: d >= 0 ? "good" : "warn",
+                  html: METRIC_CAP() + " " + (d >= 0 ? "rose" : "fell") + " <b>" + (d >= 0 ? "+" : "") + (d * 100).toFixed(1) +
+                    "%</b> from " + a.label + " (" + fmt(a.totals.ga) + ") to " + b.label + " (" + fmt(b.totals.ga) + ").",
+                });
+            }
+          }
+
+          if (anyPartial()) {
+            const p = ms.filter((m) => m.partial).map((m) => m.label + " (day " + m.elapsedDays + " of " + m.days + ")").join(", ");
+            out.push({
+              lvl: "warn",
+              html: "<b>Month still in progress:</b> " + p + ". Averages use elapsed days and the target is pro-rated, " +
+                "so this is a like-for-like comparison rather than a full month's quota.",
+            });
+          }
+
+          const dist = DATA.district.map((d) => ({ name: d.name, g: ga(d) })).filter((d) => d.g > 0).sort((a, b) => b.g - a.g);
+          if (dist.length)
+            out.push({
+              lvl: "good",
+              html: "<b>" + esc(dist[0].name) + "</b> leads with <b>" + fmt(dist[0].g) + "</b> " + METRIC() + ", " +
+                pct(dist[0].g / gaT) + " of the " + dist.length + "-district total.",
+            });
+
+          if (!out.length) out.push({ lvl: "good", html: "No material anomalies surfaced for " + periodLabel() + "." });
+          const ic = { good: ["var(--st-good)", "✓"], warn: ["var(--st-warn)", "!"], crit: ["var(--st-crit)", "!"] };
+          document.getElementById("insights").innerHTML = out
+            .map((o) => "<div class='insight'><span class='ic' style='background:" + ic[o.lvl][0] + "'>" + ic[o.lvl][1] + "</span><div>" + o.html + "</div></div>")
+            .join("");
+        }
+
+        /* ── by district ───────────────────────────────────────────────────── */
+        function renderDistrict() {
+          const rows = DATA.district.map((d) => ({ name: d.name, m: d.m, total: ga(d) })).filter((d) => d.total > 0).sort((a, b) => b.total - a.total);
+          const max = Math.max(...rows.map((r) => r.total), 1);
+          const keys = activeKeys();
+          document.getElementById("districtLegend").innerHTML =
+            keys.length > 1
+              ? MONTHS.filter((m) => keys.includes(m.key)).map((m) => "<span class='item'><span class='sw' style='background:" + mcolor(m.key) + "'></span>" + m.short + "</span>").join("")
+              : "";
+          document.getElementById("districtRows").innerHTML = rows
+            .map((r) => {
+              const segs = keys.filter((k) => r.m[k] && r.m[k].g)
+                .map((k) => "<div class='dseg' style='width:" + (r.m[k].g / max) * 100 + "%;background:" + mcolor(k) + "' title='" + esc(r.name) + " · " + (MONTHS.find((m) => m.key === k) || {}).short + " " + r.m[k].g + "'></div>")
+                .join("");
+              return "<div class='drow'><div class='dname' title='" + esc(r.name) + "'>" + esc(r.name) + "</div><div class='dtrack'>" + segs + "</div><div class='dval'>" + fmt(r.total) + "</div></div>";
+            })
+            .join("");
+        }
+
+        /* ── channel share ─────────────────────────────────────────────────── */
+        function renderChannel() {
+          const rows = DATA.channel.map((c) => ({ name: c.name, total: ga(c), rev: sm(c.m, "r") })).filter((c) => c.total > 0).sort((a, b) => b.total - a.total);
+          const sum = rows.reduce((a, r) => a + r.total, 0) || 1;
+          const COL = ["var(--s1)", "var(--s2)", "var(--s3)", "var(--text-3)"];
+          document.getElementById("channelRows").innerHTML = rows
+            .map((r, i) => {
+              const p = (r.total / sum) * 100;
+              return "<div class='crow'><div class='cname' style='color:" + COL[Math.min(i, 3)] + "'>" + esc(r.name) + "</div>" +
+                "<div class='ctrack'><div class='cfill' style='width:" + p + "%;background:" + COL[Math.min(i, 3)] + "'>" +
+                (p >= 12 ? "<span class='cpct'>" + p.toFixed(0) + "%</span>" : "<span class='cpct out'>" + p.toFixed(0) + "%</span>") +
+                "</div></div><div class='cval'>" + fmt(r.total) + "</div></div>";
+            })
+            .join("");
+        }
+
+        /* ── daily installs, stacked by district ───────────────────────────── */
+        function renderStack() {
+          const svg = document.getElementById("stackChart");
+          svg.innerHTML = "";
+          const ms = activeMonths();
+          document.getElementById("stackSub").textContent =
+            METRIC_CAP() + " per day across " + periodLabel() + (anyPartial() ? " · month still in progress" : "");
+          document.getElementById("stackLegend").innerHTML = "";
+
+          const pts = [];
+          ms.forEach((m) => m.daily.forEach((d) => pts.push({ m, d })));
+          const W = 720, H = 250, padL = 30, padR = 6, padT = 8, padB = 22;
+          const iW = W - padL - padR, iH = H - padT - padB;
+          const max = niceMax(Math.max(...pts.map((p) => p.d.ga), 1) * 1.08);
+          const step = iW / pts.length;
+          const bw = Math.min(step * 0.7, 16);
+
+          [0, 0.5, 1].forEach((fr) => {
+            const yy = padT + iH - fr * iH;
+            svg.appendChild(svgEl("line", { x1: padL, x2: W - padR, y1: yy, y2: yy, class: "gridline" }));
+            svg.appendChild(txt({ x: padL - 7, y: yy + 3, class: "axis-label", "text-anchor": "end" }, fmt(max * fr)));
+          });
+
+          let acc = 0;
+          ms.forEach((m, mi) => {
+            const start = acc;
+            acc += m.daily.length;
+            if (mi > 0) svg.appendChild(svgEl("line", { x1: padL + start * step, x2: padL + start * step, y1: padT, y2: padT + iH, stroke: "var(--line)", "stroke-width": 1, "stroke-dasharray": "2,3" }));
+            if (ms.length > 1) svg.appendChild(txt({ x: padL + (start + m.daily.length / 2) * step, y: H - 6, class: "axis-label", "text-anchor": "middle" }, m.short));
+          });
+
+          pts.forEach((p, i) => {
+            const x = padL + i * step + (step - bw) / 2;
+            const h = (p.d.ga / max) * iH;
+            const r = svgEl("rect", { x, y: padT + iH - h, width: bw, height: Math.max(h, p.d.ga ? 1.2 : 0), rx: 2, fill: mcolor(p.m.key), class: "mark" });
+            hoverable(r, p.m.short + " " + p.d.day, ["Installs <b>" + fmt(p.d.ga) + "</b>", "<span class='t-dim'>" + money(p.d.revenue) + "</span>"]);
+            svg.appendChild(r);
+            if (ms.length === 1 && (p.d.day % 5 === 0 || p.d.day === 1))
+              svg.appendChild(txt({ x: x + bw / 2, y: H - 6, class: "axis-label", "text-anchor": "middle" }, p.d.day));
+          });
+        }
+
+        /* ── month-over-month movers ───────────────────────────────────────── */
+        const MOVER_MAX = 8; // keep in sync with #moverRows min-height in the stylesheet
+        let moverDim = "district";
+        let moverOrigin = "all";
+        document.querySelectorAll("#moverDims button").forEach((b) =>
+          b.addEventListener("click", () => {
+            moverDim = b.dataset.dim;
+            document.querySelectorAll("#moverDims button").forEach((o) => o.classList.toggle("on", o.dataset.dim === moverDim));
+            renderMovers();
+          })
+        );
+        document.querySelectorAll("#moverOrigin button").forEach((b) =>
+          b.addEventListener("click", () => {
+            moverOrigin = b.dataset.org;
+            document.querySelectorAll("#moverOrigin button").forEach((o) => o.classList.toggle("on", o.dataset.org === moverOrigin));
+            renderMovers();
+          })
+        );
+        /* Installs for one entity in one month, narrowed by how the sale originated.
+           Only the import half is stored per entity; local is total minus import. */
+        function originG(r, mk) {
+          const tot = (r.m[mk] || {}).g || 0;
+          const imp = r.mi && r.mi[mk] ? r.mi[mk].g || 0 : 0;
+          return moverOrigin === "import" ? imp : moverOrigin === "local" ? tot - imp : tot;
+        }
+        function renderMovers() {
+          const el = document.getElementById("moverRows");
+          const sub = document.getElementById("moversSub");
+          // Compare the selected month against the one before it; with "all months"
+          // selected, compare the two most recent.
+          const i = SEL ? MKEYS.indexOf(SEL) : MKEYS.length - 1;
+          if (i < 1) {
+            sub.textContent = "Needs a preceding month to compare against.";
+            el.innerHTML = "<div class='mv-empty'>No earlier month to compare " +
+              (SEL ? esc(MONTHS[i].label) : "this period") + " against.</div>";
+            return;
+          }
+          const cur = MONTHS[i], prev = MONTHS[i - 1];
+          const slice = moverOrigin === "all" ? METRIC()
+            : moverOrigin === "local" ? "<strong>local</strong> " + METRIC() + " (home-territory dealers)"
+            : "<strong>import</strong> " + METRIC() + " (outside-territory dealers)";
+          sub.innerHTML = "Change in " + slice + ", <strong>" + esc(prev.short) + " → " + esc(cur.short) + "</strong>" +
+            (cur.partial ? " <span style='color:var(--st-warn)'>(" + cur.short + " still in progress — partial)</span>" : "");
+
+          const rows = (DATA[moverDim] || [])
+            .map((r) => {
+              const a = originG(r, prev.key);
+              const b = originG(r, cur.key);
+              return { name: r.name, a, b, d: b - a };
+            })
+            .filter((r) => r.a || r.b)
+            .sort((x, y) => Math.abs(y.d) - Math.abs(x.d))
+            .slice(0, MOVER_MAX);
+
+          if (!rows.length) {
+            el.innerHTML = "<div class='mv-empty'>No movement to show.</div>";
+            return;
+          }
+          const maxAbs = Math.max(...rows.map((r) => Math.abs(r.d)), 1);
+          el.innerHTML = rows
+            .map((r) => {
+              const up = r.d >= 0;
+              const w = (Math.abs(r.d) / maxAbs) * 50;
+              const col = r.d === 0 ? "var(--text-3)" : up ? "var(--st-good)" : "var(--st-crit)";
+              return "<div class='mvrow'><div class='mvname' title='" + esc(r.name) + "'>" + esc(r.name) + "</div>" +
+                "<div class='mvbar'><div class='mvneg'>" + (!up ? "<span style='width:" + w + "%;background:" + col + "'></span>" : "") + "</div>" +
+                "<div class='mvpos'>" + (up && r.d ? "<span style='width:" + w + "%;background:" + col + "'></span>" : "") + "</div></div>" +
+                "<div class='mvval' style='color:" + col + "'>" + (r.d > 0 ? "+" : "") + fmt(r.d) + "</div>" +
+                "<div class='mvraw'>" + fmt(r.a) + "→" + fmt(r.b) + "</div></div>";
+            })
+            .join("");
+        }
+
+        /* ── technology ────────────────────────────────────────────────────── */
+        function renderTech() {
+          const svg = document.getElementById("techChart");
+          svg.innerHTML = "";
+          const keys = activeKeys();
+          const rows = Object.entries(DATA.technology)
+            .map(([n, m]) => [n, keys.reduce((a, k) => a + (m[k] || 0), 0)])
+            .filter((e) => e[1] > 0)
+            .sort((a, b) => b[1] - a[1]);
+          const total = rows.reduce((a, e) => a + e[1], 0) || 1;
+          const W = 460, padL = 8, padR = 8, top = 4, rowH = 46;
+          const H = top + rows.length * rowH;
+          svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+          const iW = W - padL - padR;
+          const max = Math.max(...rows.map((e) => e[1]), 1);
+          const RAMP = ["#2a78d6", "#5598e7", "#86b6ef", "#b7d3f6"];
+          rows.forEach(([name, v], i) => {
+            const y0 = top + i * rowH;
+            svg.appendChild(txt({ x: padL, y: y0 + 14, class: "axis-strong" }, name));
+            svg.appendChild(txt({ x: W - padR, y: y0 + 14, class: "axis-strong", "text-anchor": "end", style: "fill:var(--ink);font-weight:600" }, fmt(v) + "  " + ((v / total) * 100).toFixed(1) + "%"));
+            svg.appendChild(svgEl("rect", { x: padL, y: y0 + 22, width: iW, height: 11, rx: 5.5, fill: "var(--grid)" }));
+            const r = svgEl("rect", { x: padL, y: y0 + 22, width: Math.max((v / max) * iW, 2), height: 11, rx: 5.5, fill: RAMP[Math.min(i, 3)], class: "mark" });
+            hoverable(r, name, [METRIC_CAP() + " <b>" + fmt(v) + "</b>", "Share <b>" + pct(v / total) + "</b>"]);
+            svg.appendChild(r);
+          });
+        }
+
+        /* ── FTTH tiles ────────────────────────────────────────────────────── */
+        function renderFtthTiles() {
+          const meta = DATA.meta;
+          const withInstalls = DATA.villages.matched.filter((r) => ga(r) > 0);
+          const active = withInstalls.reduce((a, r) => a + r.activeFtth, 0);
+          const g = withInstalls.reduce((a, r) => a + ga(r), 0);
+          const list = [
+            { label: "Active FTTH Base", value: fmt(meta.totalActiveFtth), sub: "ports across " + fmt(meta.totalVillages) + " villages" },
+            { label: "Villages With " + METRIC_CAP(), value: fmt(withInstalls.length), sub: "in " + periodLabel() + " · exact-name match" },
+            { label: METRIC_CAP() + " In Those", value: fmt(g), sub: "of " + fmt(activeMonths().reduce((a, m) => a + m.totals.ga, 0)) + " total" },
+            { label: "New Rate", value: active ? ((g / active) * 100).toFixed(2) + "%" : "—", sub: METRIC() + " ÷ active base" },
+          ];
+          document.getElementById("ftthTiles").innerHTML = list
+            .map((x) => "<div class='tile'><div class='label'>" + x.label + "</div><div class='value'>" + x.value + "</div><div class='sub'>" + x.sub + "</div></div>")
+            .join("");
+        }
+
+        /* ── searchable tables ─────────────────────────────────────────────── */
+        function wireSearch(id, countId, getAll, match, render, tableId, cols) {
+          const input = document.getElementById(id), countEl = document.getElementById(countId);
+          const run = () => {
+            const q = input.value.trim().toLowerCase();
+            const all = getAll();
+            const rows = q ? all.filter((r) => match(r, q)) : all;
+            countEl.textContent = fmt(rows.length) + " of " + fmt(all.length);
+            render(rows);
+            // An empty result must say so -- otherwise the table is just a blank box
+            // and only the small "0 of N" counter hints at what happened.
+            if (!rows.length && tableId) {
+              const tb = document.querySelector("#" + tableId + " tbody");
+              if (tb)
+                tb.innerHTML =
+                  "<tr><td colspan='" + (cols || 6) + "' class='empty-state'>No match for <strong>" +
+                  esc(input.value.trim()) + "</strong>. <button type='button' class='linkbtn' data-clear='" + id +
+                  "'>Clear filter</button></td></tr>";
+            }
+          };
+          if (!input.dataset.wired) {
+            let deb = null;
+            input.addEventListener("input", () => {
+              clearTimeout(deb);
+              deb = setTimeout(run, 150);
+            });
+            input.dataset.wired = "1";
+          }
+          run();
+        }
+
+        /* Nested channel > sub-channel > territory > dealer rows. Every node has its
+           own toggle; `expanded` is keyed "<row>><i.j.k>" so open state survives a
+           re-render from search, a sibling toggle, or a month change. */
+        function bdRows(nodes, rowKey, path, depth, expanded, pad) {
+          let html = "";
+          nodes.forEach((n, i) => {
+            if (ga(n) === 0) return;
+            const p = path.concat(i), ek = rowKey + ">" + p.join(".");
+            const kids = !!(n.children && n.children.length);
+            const open = expanded.has(ek);
+            const imported = depth === 2 && n.name !== PROVINCE;
+            html +=
+              "<tr class='bd" + (kids ? " expandable" : "") + "' data-ekey='" + esc(ek) + "'>" +
+              "<td><div class='bd-cell bd-" + depth + "' style='padding-left:" + (depth * 15 + 4) + "px'>" +
+              (depth > 0 ? "<span class='bd-rail' style='left:" + (depth * 15 - 7) + "px'></span>" : "") +
+              (kids ? "<span class='tog" + (open ? " on" : "") + "'>" + (open ? "−" : "+") + "</span>" : "<span style='width:15px;flex:none'></span>") +
+              "<span class='bd-nm'>" + esc(n.name) + "</span>" + (imported ? "<span class='pill warn'>import</span>" : "") +
+              "</div></td>" + pad(n) + "</tr>";
+            if (kids && open) html += bdRows(n.children, rowKey, p, depth + 1, expanded, pad);
+          });
+          return html;
+        }
+        function wireRows(tbl, expanded, render, getList) {
+          tbl.querySelectorAll("tr.expandable").forEach((tr) => {
+            const k = tr.getAttribute("data-key") || tr.getAttribute("data-ekey");
+            const toggle = () => {
+              expanded.has(k) ? expanded.delete(k) : expanded.add(k);
+              render(getList());
+            };
+            // Reachable and operable by keyboard, not mouse-only.
+            tr.tabIndex = 0;
+            tr.setAttribute("role", "button");
+            tr.setAttribute("aria-expanded", expanded.has(k) ? "true" : "false");
+            tr.addEventListener("click", (e) => {
+              e.stopPropagation();
+              toggle();
+            });
+            tr.addEventListener("keydown", (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                e.stopPropagation();
+                toggle();
+              }
+            });
+          });
+        }
+
+        const expBldg = new Set();
+        const DISTRICT_COLORS = ["var(--s1)", "var(--s2)", "var(--s3)", "var(--accent-mark)", "#9166cc"];
+        const districtColor = (() => {
+          const order = DATA.district.map((d) => d.name);
+          return (name) => DISTRICT_COLORS[Math.max(order.indexOf(name), 0) % DISTRICT_COLORS.length];
+        })();
+        function renderBuildings() {
+          const meta = DATA.meta;
+          const combined = DATA.villages.matched.concat(DATA.villages.bbOnly);
+          const all = combined.filter((r) => ga(r) > 0);
+          const topOverall = combined.reduce((a, r) => (ga(r) > ga(a) ? r : a), combined[0]);
+
+          document.getElementById("bldgSub").innerHTML =
+            fmt(all.length) + " buildings had " + METRIC() + " in " + periodLabel() +
+            ". <strong>Click a row</strong> to drill into channel \u2192 sub-channel \u2192 territory \u2192 dealer, or a column " +
+            "header to re-sort.";
+
+          const cols = [{ key: "name", label: "Building", val: (r) => r.name },
+                        { key: "district", label: "District", val: (r) => r.district || "" }]
+            .concat(MONTHS.map((m) => ({ key: "m_" + m.key, label: m.short, num: true, val: (r) => (r.m[m.key] || {}).g || 0 })))
+            .concat([{ key: "total", label: "Total", num: true, val: (r) => ga(r) }]);
+          const def = { key: "total", dir: -1 };
+          const maxG = Math.max(...all.map((r) => ga(r)), 1);
+
+          // One <td> per header column or the browser slots these into whichever
+          // columns come next, not the intended ones.
+          const pad = (n) =>
+            "<td></td>" + MONTHS.map((m) => "<td class='num'>" + cell(n.m[m.key]) + "</td>").join("") +
+            "<td class='num lead'>" + fmt(ga(n)) + "</td>";
+
+          let cur = all;
+          function render(list) {
+            cur = list;
+            const sorted = sortRows("bldgTable", list, cols, def);
+            EXPORTS.buildings = () => ({
+              name: "buildings",
+              header: ["Building", "Building ID", "District", "Active FTTH"].concat(MONTHS.map((m) => m.short)).concat(["Total " + METRIC(), "Revenue"]),
+              rows: sorted.map((r) => [r.name, r.bid || "", r.district || "", r.activeFtth == null ? "" : r.activeFtth]
+                .concat(MONTHS.map((m) => (r.m[m.key] || {}).g || 0))
+                .concat([ga(r), Math.round(sm(r.m, "r"))])),
+            });
+            let h = thead("bldgTable", cols, def) + "<tbody>";
+            sorted.forEach((r) => {
+              const g = ga(r), kids = r.breakdown && r.breakdown.length, open = expBldg.has(r.name);
+              h += "<tr class='" + (kids ? "expandable" : "") + "' data-key='" + esc(r.name) + "'>" +
+                "<td class='rowbar'><span class='fill' style='width:" + (g / maxG) * 100 + "%'></span><span class='name'>" +
+                (kids ? "<span class='tog" + (open ? " on" : "") + "'>" + (open ? "\u2212" : "+") + "</span>" : "<span style='width:15px;flex:none'></span>") +
+                "<span class='nm' style='font-weight:600'>" + esc(r.name) + "</span>" +
+                (r.bid ? "<span class='bid'>#" + esc(r.bid) + "</span>" : "") +
+                (r === topOverall ? "<span class='pill top'>TOP</span>" : "") + "</span></td>" +
+                "<td><span class='pill dist' style='background:" + districtColor(r.district) + "22;color:" + districtColor(r.district) + "'>" + esc(r.district) + "</span></td>" +
+                MONTHS.map((m) => "<td class='num'>" + cell(r.m[m.key]) + "</td>").join("") +
+                "<td class='num lead'>" + fmt(g) + "</td></tr>";
+              if (kids && open) h += bdRows(r.breakdown, r.name, [], 0, expBldg, pad);
+            });
+            const t = document.getElementById("bldgTable");
+            t.innerHTML = h + "</tbody>";
+            wireRows(t, expBldg, render, () => cur);
+          }
+          RERENDER.bldgTable = () => render(cur);
+          wireSearch("bldgSearch", "bldgCount", () => all,
+            (r, q) => r.name.toLowerCase().includes(q) || (r.district || "").toLowerCase().includes(q),
+            render, "bldgTable", 3 + MONTHS.length);
+        }
+
+        function renderTerritory() {
+          const rows = DATA.dealerTerritory.map((d) => ({ name: d.name, g: ga(d), r: sm(d.m, "r") })).filter((d) => d.g > 0);
+          const outG = rows.filter((r) => r.name !== PROVINCE).reduce((a, r) => a + r.g, 0);
+          const homeG = (rows.find((r) => r.name === PROVINCE) || { g: 0 }).g;
+          document.getElementById("territorySub").innerHTML =
+            "Scope is by customer location, so this shows which <code>TDS_PROVINCE_PARTNER</code> team actually booked each " + METRIC().replace(/s$/, "") + ". <strong>" +
+            fmt(homeG) + "</strong> came from the home territory; <strong>" + fmt(outG) + "</strong> were imported from " + (rows.length - 1) + " other territories.";
+
+          const cols = [{ key: "name", label: "Dealer territory", val: (r) => r.name },
+                        { key: "g", label: METRIC_CAP(), num: true, val: (r) => r.g },
+                        { key: "r", label: "Revenue", num: true, val: (r) => r.r }];
+          const def = { key: "g", dir: -1 };
+          const sorted = sortRows("dealerTerritoryTable", rows, cols, def);
+          EXPORTS.territory = () => ({
+            name: "dealer-territory",
+            header: ["Dealer territory", "Home or import", METRIC_CAP(), "Revenue"],
+            rows: sorted.map((r) => [r.name, r.name === PROVINCE ? "home" : "import", r.g, Math.round(r.r)]),
+          });
+          const maxG = Math.max(...rows.map((r) => r.g), 1);
+          let h = thead("dealerTerritoryTable", cols, def) + "<tbody>";
+          sorted.forEach((r) => {
+            const isHome = r.name === PROVINCE;
+            h += "<tr><td class='rowbar'><span class='fill' style='width:" + (r.g / maxG) * 100 + "%;background:" +
+              (isHome ? "var(--accent-soft)" : "var(--line-2)") + "'></span><span class='name'><span class='nm'" +
+              (isHome ? " style='font-weight:600'" : "") + ">" + esc(r.name) + "</span>" + (isHome ? "<span class='pill home'>home</span>" : "") +
+              "</span></td><td class='num lead'>" + fmt(r.g) + "</td><td class='num'>" + money(r.r) + "</td></tr>";
+          });
+          document.getElementById("dealerTerritoryTable").innerHTML = h + "</tbody>";
+        }
+        RERENDER.dealerTerritoryTable = () => renderTerritory();
+
+        function renderSubChannel() {
+          const keys = activeKeys();
+          // Targets pro-rate with the month, same as the headline figure.
+          const frac = {};
+          MONTHS.forEach((m) => (frac[m.key] = m.elapsedDays / m.days));
+          const rows = DATA.subChannel
+            .map((sc) => ({
+              name: sc.name, g: ga(sc), r: sm(sc.m, "r"),
+              t: sc.t ? keys.reduce((a, k) => a + (sc.t[k] || 0) * (frac[k] || 1), 0) : 0,
+            }))
+            .filter((sc) => sc.g > 0 || sc.t > 0)
+            .map((sc) => Object.assign(sc, { ach: sc.t > 0 ? sc.g / sc.t : -1 }));
+
+          const cols = [{ key: "name", label: "Sub-channel", val: (r) => r.name },
+                        { key: "g", label: METRIC_CAP(), num: true, val: (r) => r.g },
+                        { key: "t", label: "Target", num: true, val: (r) => r.t },
+                        { key: "ach", label: "Achieve", num: true, val: (r) => r.ach },
+                        { key: "r", label: "Revenue", num: true, val: (r) => r.r }];
+          const def = { key: "g", dir: -1 };
+          const sorted = sortRows("subChannelTable", rows, cols, def);
+          EXPORTS.subchannel = () => ({
+            name: "sub-channel",
+            header: ["Sub-channel", METRIC_CAP(), "Target", "Achieve %", "Revenue"],
+            rows: sorted.map((r) => [r.name, r.g, r.t > 0 ? r.t.toFixed(1) : "", r.t > 0 ? (r.ach * 100).toFixed(1) : "", Math.round(r.r)]),
+          });
+          const maxG = Math.max(...rows.map((r) => r.g), 1);
+          let h = thead("subChannelTable", cols, def) + "<tbody>";
+          sorted.forEach((r) => {
+            let cls = "muted", label = "\u2014";
+            if (r.t > 0) {
+              cls = r.ach >= 1 ? "good" : r.ach >= 0.7 ? "warn" : "crit";
+              label = pct(r.ach);
+            }
+            h += "<tr><td class='rowbar'><span class='fill' style='width:" + (r.g / maxG) * 100 + "%'></span><span class='name'><span class='nm'>" +
+              esc(r.name) + "</span></span></td><td class='num lead'>" + fmt(r.g) + "</td><td class='num'>" + (r.t > 0 ? fmt1(r.t) : "\u2014") +
+              "</td><td class='num'><span class='pill " + cls + "'>" + label + "</span></td><td class='num'>" + money(r.r) + "</td></tr>";
+          });
+          document.getElementById("subChannelTable").innerHTML = h + "</tbody>";
+        }
+        RERENDER.subChannelTable = () => renderSubChannel();
+
+        function renderDealers() {
+          const rows = DATA.supervisor.map((d) => ({ name: d.name, g: ga(d), r: sm(d.m, "r") })).filter((d) => d.g > 0);
+          const cols = [{ key: "name", label: "Dealer / supervisor", val: (r) => r.name },
+                        { key: "g", label: METRIC_CAP(), num: true, val: (r) => r.g },
+                        { key: "r", label: "Revenue", num: true, val: (r) => r.r }];
+          const def = { key: "g", dir: -1 };
+          const sorted = sortRows("dealerTable", rows, cols, def).slice(0, 12);
+          EXPORTS.dealers = () => ({
+            name: "dealers",
+            header: ["Dealer / supervisor", METRIC_CAP(), "Revenue"],
+            rows: sortRows("dealerTable", rows, cols, def).map((r) => [r.name, r.g, Math.round(r.r)]),
+          });
+          const maxG = Math.max(...sorted.map((r) => r.g), 1);
+          let h = thead("dealerTable", cols, def) + "<tbody>";
+          sorted.forEach((r) => {
+            h += "<tr><td class='rowbar'><span class='fill' style='width:" + (r.g / maxG) * 100 + "%'></span><span class='name'><span class='nm'>" +
+              esc(r.name) + "</span></span></td><td class='num lead'>" + fmt(r.g) + "</td><td class='num'>" + money(r.r) + "</td></tr>";
+          });
+          document.getElementById("dealerTable").innerHTML = h + "</tbody>";
+        }
+        RERENDER.dealerTable = () => renderDealers();
+
+        /* ── render everything for the current selection ───────────────────── */
+        function renderAll() {
+          renderHero();
+          renderTiles();
+          renderInsights();
+          renderDistrict();
+          renderChannel();
+          renderStack();
+          renderMovers();
+          renderTech();
+          renderFtthTiles();
+          renderBuildings();
+          renderTerritory();
+          renderSubChannel();
+          renderDealers();
+        }
+        renderAll();
+      }
+
+      /* ===== Google Sign-In =====
+         Fill these in once you've completed the Google Cloud / Apps Script
+         setup in README.md -- the page won't work (and says so) until you
+         do. Nothing above this point runs until initApp(payload) is called
+         from onGoogleSignIn below -- all interaction is blocked behind
+         #loginGate until then. */
+      const GOOGLE_CLIENT_ID = "REPLACE_WITH_YOUR_OAUTH_CLIENT_ID";
+      const DEFAULT_SYNC_URL = "REPLACE_WITH_YOUR_APPS_SCRIPT_WEB_APP_URL";
+
+      function showLoginStatus(html, isError) {
+        const el = document.getElementById("loginStatus");
+        el.innerHTML = html;
+        el.style.display = "block";
+        el.classList.toggle("error", !!isError);
+      }
+
+      let appInitialized = false;
+      async function onGoogleSignIn(response) {
+        const idToken = response.credential;
+        document.getElementById("gsiButton").style.display = "none";
+        showLoginStatus('<div class="login-spinner"></div>', false);
+        try {
+          const res = await fetch(DEFAULT_SYNC_URL, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify({ action: "myBbData", idToken }),
+          });
+          const data = await res.json();
+          if (!data.ok) {
+            document.getElementById("gsiButton").style.display = "flex";
+            showLoginStatus(data.message || ("Sign-in failed: " + (data.error || "unknown error")), true);
+            return;
+          }
+          document.getElementById("loginGate").style.display = "none";
+          if (!appInitialized) {
+            initApp(data.payload);
+            appInitialized = true;
+          }
+        } catch (e) {
+          document.getElementById("gsiButton").style.display = "flex";
+          showLoginStatus("Could not reach the server. Check your connection and try again.", true);
+          console.warn("myBbData fetch failed", e);
+        }
+      }
+
+      window.addEventListener("load", () => {
+        if (GOOGLE_CLIENT_ID.indexOf("REPLACE_WITH") === 0) {
+          showLoginStatus("This page isn’t configured yet — GOOGLE_CLIENT_ID needs to be set. See the repo README.", true);
+          return;
+        }
+        if (!(window.google && google.accounts && google.accounts.id)) {
+          showLoginStatus("Could not load Google Sign-In. Check your connection and reload.", true);
+          return;
+        }
+        google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: onGoogleSignIn });
+        google.accounts.id.renderButton(document.getElementById("gsiButton"), { theme: "outline", size: "large" });
+      });
+    </script>
+  </body>
+</html>
