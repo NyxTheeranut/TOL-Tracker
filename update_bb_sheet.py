@@ -19,6 +19,21 @@ full schema and why (the Apps Script side reconstructs the nested shape back
 from those tables -- see its reconstructPayload_, a hand-ported mirror of
 sheet_schema.reconstruct(), which this repo's own test proves lossless
 against real data).
+
+── Why this fetches before it writes ────────────────────────────────────────
+Raw TOL_*.txt exports live only in TOL/Data/ on this one machine -- never
+committed anywhere, never backed up elsewhere. If that folder ever has fewer
+months than usual (a fresh machine, an accidentally-cleared folder, a laptop
+swap), a naive "aggregate whatever's here and overwrite the Sheet" sync would
+silently DELETE the missing months from the Sheet too -- and once gone,
+they're gone for good; the Sheet is the only remaining copy past MAX_MONTHS
+ago. So this script fetches the Sheet's current state first (getSyncData),
+merges in whatever fresh months build_output() actually produced locally
+(sheet_schema.merge_months -- local data always wins for months it covers,
+older Sheet-only months are carried through untouched, and the whole thing
+is still capped to aggregate_bb.MAX_MONTHS), and only then writes the union
+back. A month can only ever be dropped by that cap once genuinely newer
+months push it off the old end -- never by an incomplete local folder.
 """
 import json
 import sys
@@ -39,6 +54,32 @@ SYNC_URL = "https://script.google.com/macros/s/AKfycbxKW_yaYY4B2O3nsX_12Wgzpg_QW
 SYNC_SECRET_FILE = DASHBOARD_DIR / "Config" / "bb_sync_secret.txt"
 
 
+def post(sync_secret, action, **fields):
+    payload = json.dumps({"action": action, "secret": sync_secret, **fields}, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(
+        SYNC_URL, data=payload, method="POST",
+        headers={"Content-Type": "text/plain;charset=utf-8"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=120) as res:
+            body = res.read().decode("utf-8")
+    except urllib.error.HTTPError as e:
+        raise SystemExit(f"{action} failed: HTTP {e.code}\n{e.read().decode('utf-8', 'replace')[:500]}")
+    except urllib.error.URLError as e:
+        raise SystemExit(f"{action} failed: {e.reason}")
+    try:
+        result = json.loads(body)
+    except json.JSONDecodeError:
+        raise SystemExit(
+            f"{action} failed: response wasn't JSON (the Web App URL may need to be "
+            "redeployed with \"Who has access: Anyone\").\n"
+            f"First 300 chars of response:\n{body[:300]}"
+        )
+    if not result.get("ok"):
+        raise SystemExit(f"{action} failed: {result.get('error')}")
+    return result
+
+
 def main():
     if not SYNC_SECRET_FILE.exists():
         raise SystemExit(
@@ -55,11 +96,26 @@ def main():
         )
 
     print("Running the same aggregation as aggregate_bb.py...")
-    out = aggregate_bb.build_output()
-    total = sum(m["installs"] for m in out["months"])
-    total_reg = sum(m["installsReg"] for m in out["months"])
-    print(f"  {len(out['months'])} months   {total} installs   {total_reg} registrations   "
-          f"{out['meta']['totalBuildings']} buildings")
+    new_out = aggregate_bb.build_output()
+    total = sum(m["installs"] for m in new_out["months"])
+    total_reg = sum(m["installsReg"] for m in new_out["months"])
+    print(f"  local data covers: {[m['key'] for m in new_out['months']]}   "
+          f"{total} installs   {total_reg} registrations")
+
+    print("Fetching the Sheet's current state (to merge into, not overwrite)...")
+    existing = post(sync_secret, "getSyncData").get("payload")
+    if existing is None:
+        print("  nothing synced yet -- this will be the first push.")
+        out = new_out
+        # Still apply the same cap a fresh build_output() would already
+        # satisfy in practice (discover_months() already caps it) -- explicit
+        # here so this script's behavior doesn't depend on that detail.
+        if len(out["months"]) > aggregate_bb.MAX_MONTHS:
+            out["months"] = out["months"][-aggregate_bb.MAX_MONTHS:]
+    else:
+        print(f"  Sheet currently has: {[m['key'] for m in existing['months']]}")
+        out = sheet_schema.merge_months(existing, new_out, aggregate_bb.MAX_MONTHS)
+        print(f"  merged result covers: {[m['key'] for m in out['months']]}")
 
     tabs = sheet_schema.flatten(out)
     total_rows = sum(len(t["rows"]) for t in tabs.values())
@@ -67,36 +123,12 @@ def main():
     for name, t in tabs.items():
         print(f"  {name:<20} {len(t['rows']):>6} rows")
 
-    payload = json.dumps({
-        "action": "syncBbData", "tabs": tabs, "secret": sync_secret,
-    }, ensure_ascii=False).encode("utf-8")
-    print(f"Upload size: {len(payload) / 1e6:.2f} MB")
-    req = urllib.request.Request(
-        SYNC_URL, data=payload, method="POST",
-        headers={"Content-Type": "text/plain;charset=utf-8"},
-    )
+    payload_preview = json.dumps(tabs, ensure_ascii=False)
+    print(f"Upload size: {len(payload_preview) / 1e6:.2f} MB")
+
     print("Uploading to Google Sheet...")
-    try:
-        with urllib.request.urlopen(req, timeout=120) as res:
-            body = res.read().decode("utf-8")
-    except urllib.error.HTTPError as e:
-        raise SystemExit(f"Upload failed: HTTP {e.code}\n{e.read().decode('utf-8', 'replace')[:500]}")
-    except urllib.error.URLError as e:
-        raise SystemExit(f"Upload failed: {e.reason}")
-
-    try:
-        result = json.loads(body)
-    except json.JSONDecodeError:
-        raise SystemExit(
-            "Upload failed: response wasn't JSON (the Web App URL may need to be "
-            "redeployed with \"Who has access: Anyone\").\n"
-            f"First 300 chars of response:\n{body[:300]}"
-        )
-
-    if result.get("ok"):
-        print(f"Done -- {result.get('rows')} rows synced across {result.get('tabs')} tabs.")
-    else:
-        raise SystemExit(f"Upload failed: {result.get('error')}")
+    result = post(sync_secret, "syncBbData", tabs=tabs)
+    print(f"Done -- {result.get('rows')} rows synced across {result.get('tabs')} tabs.")
 
 
 if __name__ == "__main__":

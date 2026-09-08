@@ -409,3 +409,235 @@ def reconstruct(tabs):
     }
     out.update(connect_block)
     return out
+
+
+# ── merge_months ─────────────────────────────────────────────────────────────
+# The Sheet is the only durable copy of history beyond MAX_MONTHS ago (raw
+# TOL_*.txt exports live only on the one local machine, in TOL/Data/, never
+# committed anywhere). A naive "flatten local build_output() and overwrite"
+# sync would silently DELETE history whenever the local Data/ folder happens
+# to have fewer months than usual (a fresh machine, an accidentally-cleared
+# folder, ...) -- exactly the scenario that must never destroy data. So the
+# sync script fetches what's already in the Sheet, merges in whatever fresh
+# months it has locally, and pushes the union (capped to max_months) --
+# months present locally always win (they're a fresh, presumably-better
+# recomputation); months ONLY known to the Sheet are carried through
+# untouched. A month can only ever be dropped by the max_months cap pushing
+# it off the OLD end after genuinely newer months arrive, never by a
+# temporarily-incomplete local folder.
+
+def _merge_month_map(existing_m, new_m, new_months, final_months):
+    """One entity's {month: value} map (value is {g,r} or a plain number --
+    doesn't matter, this never inspects it). For each month in the final
+    window: if local recomputed that month at all, its answer wins outright
+    (including "absent" -- compact() already means zero, not "unknown");
+    otherwise fall back to whatever the Sheet already had."""
+    merged = {}
+    for mk in final_months:
+        if mk in new_months:
+            if mk in new_m:
+                merged[mk] = new_m[mk]
+        elif mk in existing_m:
+            merged[mk] = existing_m[mk]
+    return merged
+
+
+def _merge_entity_list(existing_list, new_list, new_months, final_months, with_import, with_target):
+    existing_by_name = {r["name"]: r for r in existing_list}
+    new_by_name = {r["name"]: r for r in new_list}
+    names = set(existing_by_name) | set(new_by_name)
+
+    result = []
+    for name in names:
+        e = existing_by_name.get(name, {})
+        n = new_by_name.get(name, {})
+        merged_m = _merge_month_map(e.get("m", {}), n.get("m", {}), new_months, final_months)
+        if not merged_m:
+            continue  # zero activity anywhere in the merged window -- drop, matching compact()
+        row = {"name": name, "m": merged_m}
+        if with_import:
+            mi = _merge_month_map(e.get("mi", {}), n.get("mi", {}), new_months, final_months)
+            if mi:
+                row["mi"] = mi
+        if with_target:
+            t = _merge_month_map(e.get("t", {}), n.get("t", {}), new_months, final_months)
+            if t:
+                row["t"] = t
+        result.append(row)
+    result.sort(key=lambda r: -sum(v["g"] for v in r["m"].values()))
+    return result
+
+
+def _merge_technology(existing_tech, new_tech, new_months, final_months):
+    names = set(existing_tech) | set(new_tech)
+    result = {}
+    for name in names:
+        merged = _merge_month_map(existing_tech.get(name, {}), new_tech.get(name, {}), new_months, final_months)
+        if merged:
+            result[name] = merged
+    return result
+
+
+def _merge_villages(existing_v, new_v, new_months, final_months):
+    def by_name(rows):
+        return {r["name"]: r for r in rows}
+
+    e_matched, n_matched = by_name(existing_v["matched"]), by_name(new_v["matched"])
+    e_bbonly, n_bbonly = by_name(existing_v["bbOnly"]), by_name(new_v["bbOnly"])
+    e_ftth, n_ftth = by_name(existing_v["ftthOnly"]), by_name(new_v["ftthOnly"])
+
+    # "matched" (has an FTTH census entry) vs "bbOnly" is a static identity
+    # fact about the building, not month-dependent -- if either run ever saw
+    # it as matched, it's matched. Every census village that's been seen
+    # (matched OR ftthOnly, in either run) forms the full census set; anyone
+    # not left with installs after merging falls back to ftthOnly.
+    census_names = set(e_matched) | set(n_matched) | set(e_ftth) | set(n_ftth)
+    building_names = set(e_matched) | set(n_matched) | set(e_bbonly) | set(n_bbonly)
+
+    def leaf_rows_for(entry):
+        rows = []
+        if entry:
+            _flatten_leaf_breakdown(entry.get("breakdown", []), "x", entry["name"], rows)
+        return rows
+
+    def merged_entity(name, is_matched):
+        e = (e_matched if is_matched else e_bbonly).get(name, {})
+        n = (n_matched if is_matched else n_bbonly).get(name, {})
+        merged_m = _merge_month_map(e.get("m", {}), n.get("m", {}), new_months, final_months)
+        if not merged_m:
+            return None
+        entry = {
+            "name": name, "m": merged_m,
+            "district": n.get("district") or e.get("district") or "(no district)",
+            "bid": n.get("bid") or e.get("bid"),
+        }
+        if is_matched:
+            entry["activeFtth"] = n.get("activeFtth", e.get("activeFtth", 0))
+
+        # Merge the breakdown trees at the leaf level (channel/special/
+        # territory/partner/month), the same month-preference rule as
+        # everywhere else, then rebuild the rollup tree from those leaves.
+        e_leaves = leaf_rows_for(e)
+        n_leaves = leaf_rows_for(n)
+        leaf_map = {}  # (channel, special, territory, partner) -> {month: {g,r}}
+        for mode, building, channel, special, territory, partner, mk, ga, revenue in e_leaves:
+            key = (channel, special, territory, partner)
+            leaf_map.setdefault(key, {})[mk] = {"g": ga, "r": revenue}
+        new_leaf_map = {}
+        for mode, building, channel, special, territory, partner, mk, ga, revenue in n_leaves:
+            key = (channel, special, territory, partner)
+            new_leaf_map.setdefault(key, {})[mk] = {"g": ga, "r": revenue}
+        all_keys = set(leaf_map) | set(new_leaf_map)
+        merged_leaf_rows = []
+        for key in all_keys:
+            merged_mm = _merge_month_map(leaf_map.get(key, {}), new_leaf_map.get(key, {}), new_months, final_months)
+            channel, special, territory, partner = key
+            for mk, v in merged_mm.items():
+                merged_leaf_rows.append(("x", name, channel, special, territory, partner, mk, v["g"], v["r"]))
+        entry["breakdown"] = _rebuild_breakdown_tree(merged_leaf_rows)
+        return entry
+
+    matched, bb_only = [], []
+    for name in building_names:
+        is_matched = name in census_names
+        entry = merged_entity(name, is_matched)
+        if entry:
+            (matched if is_matched else bb_only).append(entry)
+    matched.sort(key=lambda r: -r["activeFtth"])
+    bb_only.sort(key=lambda r: -sum(v["g"] for v in r["m"].values()))
+
+    matched_names_final = {r["name"] for r in matched}
+    ftth_only = []
+    for name in census_names - matched_names_final:
+        active = (n_ftth.get(name) or e_ftth.get(name) or n_matched.get(name) or e_matched.get(name) or {}).get("activeFtth", 0)
+        ftth_only.append({"name": name, "activeFtth": active})
+    ftth_only.sort(key=lambda r: -r["activeFtth"])
+
+    return {"matched": matched, "ftthOnly": ftth_only, "bbOnly": bb_only}
+
+
+def _merge_mode_block(existing_block, new_block, new_months, final_months, with_targets):
+    dims = [
+        ("district", True, False), ("channel", True, False), ("subChannel", True, True),
+        ("dealerTerritory", False, False), ("supervisor", False, False),
+    ]
+    block = {}
+    for key, with_import, with_target in dims:
+        block[key] = _merge_entity_list(
+            existing_block.get(key, []), new_block.get(key, []),
+            new_months, final_months, with_import, with_target and with_targets,
+        )
+    block["supervisor"] = block["supervisor"][:20]
+    block["technology"] = _merge_technology(
+        existing_block.get("technology", {}), new_block.get("technology", {}), new_months, final_months
+    )
+    block["villages"] = _merge_villages(
+        existing_block.get("villages", {"matched": [], "bbOnly": [], "ftthOnly": []}),
+        new_block.get("villages", {"matched": [], "bbOnly": [], "ftthOnly": []}),
+        new_months, final_months,
+    )
+    return block
+
+
+def merge_months(existing_out, new_out, max_months):
+    """Merges a freshly-computed build_output() into whatever's already been
+    synced to the Sheet (also in build_output()'s shape, via reconstruct()),
+    keeping the max_months most recent months by key. existing_out may be
+    None (nothing synced yet -- first run), in which case this just caps
+    new_out to its own most recent max_months and returns it unchanged
+    otherwise."""
+    new_months_set = {m["key"] for m in new_out["months"]}
+
+    if existing_out is None:
+        final_keys = sorted(new_months_set)[-max_months:]
+    else:
+        existing_keys = {m["key"] for m in existing_out["months"]}
+        final_keys = sorted(existing_keys | new_months_set)[-max_months:]
+    final_keys_set = set(final_keys)
+
+    existing_months_by_key = {m["key"]: m for m in (existing_out["months"] if existing_out else [])}
+    new_months_by_key = {m["key"]: m for m in new_out["months"]}
+    merged_months = [
+        new_months_by_key[k] if k in new_months_by_key else existing_months_by_key[k]
+        for k in final_keys
+    ]
+
+    existing_register = existing_out["register"] if existing_out else {"byStatus": {}}
+    new_register = new_out["register"]
+
+    connect_block = _merge_mode_block(
+        existing_out if existing_out else {}, new_out, new_months_set, final_keys_set, with_targets=True
+    )
+    register_block = _merge_mode_block(
+        existing_register, new_register, new_months_set, final_keys_set, with_targets=False
+    )
+    statuses = set(existing_register.get("byStatus", {})) | set(new_register.get("byStatus", {}))
+    by_status = {}
+    for status in statuses:
+        merged = _merge_mode_block(
+            existing_register.get("byStatus", {}).get(status, {}),
+            new_register.get("byStatus", {}).get(status, {}),
+            new_months_set, final_keys_set, with_targets=False,
+        )
+        if merged["district"]:  # drop a status entirely if it has no activity left in the merged window
+            by_status[status] = merged
+    register_block["byStatus"] = by_status
+
+    # Meta is whole-window summary info -- recomputed from the merged
+    # buildings list (source of truth after merging) rather than taken
+    # wholesale from either side, so totals stay accurate to what's actually
+    # in the merged output.
+    village_names = {r["name"] for r in connect_block["villages"]["matched"] + connect_block["villages"]["bbOnly"]}
+    matched_names = {r["name"] for r in connect_block["villages"]["matched"]}
+    census_total = len(village_names | {r["name"] for r in connect_block["villages"]["ftthOnly"]} | matched_names)
+    meta = dict(new_out["meta"])  # freshest source-file/generatedAt info wins
+    meta["totalBuildings"] = len(village_names)
+    meta["matchedCount"] = len(matched_names)
+    meta["totalVillages"] = len(connect_block["villages"]["ftthOnly"]) + len(matched_names)
+    meta["totalActiveFtth"] = sum(r.get("activeFtth", 0) for r in connect_block["villages"]["matched"]) + \
+        sum(r["activeFtth"] for r in connect_block["villages"]["ftthOnly"])
+    meta["matchRateVillages"] = round(len(matched_names) / meta["totalVillages"] * 100, 1) if meta["totalVillages"] else 0
+
+    out = {"meta": meta, "months": merged_months, "register": register_block}
+    out.update(connect_block)
+    return out

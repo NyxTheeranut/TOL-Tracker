@@ -54,9 +54,11 @@
  * action enforces that separately:
  *   myBbData  -> requires the email to be a row in Users. An email that
  *                isn't gets an explicit "not set up" response.
- *   syncBbData -> not a person signing in at all (it's update_bb_sheet.py on
- *                 your own machine), so it can't go through the Users tab --
- *                 gated by a shared SYNC_SECRET instead.
+ *   getSyncData / syncBbData -> not a person signing in at all (it's
+ *                 update_bb_sheet.py on your own machine, reading the
+ *                 current state before merging in fresh months and then
+ *                 writing the result back), so neither can go through the
+ *                 Users tab -- both gated by a shared SYNC_SECRET instead.
  *
  * ── SETUP (one-time) -- see this repo's README.md for the full walkthrough ─
  *  1. Create a new Google Sheet (or open one dedicated to this app).
@@ -98,6 +100,15 @@ function doPost(e) {
 
     if (body.action === "myBbData") {
       return jsonResponse_(myBbData_(body.idToken));
+    }
+
+    if (body.action === "getSyncData") {
+      // Read-only counterpart of syncBbData, for update_bb_sheet.py to fetch
+      // the Sheet's current state before merging in fresh local months --
+      // gated by the same secret (not a person signing in, so no ID token).
+      requireSyncSecret_(body.secret);
+      var tabs = readAllTabs_();
+      return jsonResponse_({ ok: true, payload: tabs ? reconstructPayload_(tabs) : null });
     }
 
     if (body.action === "syncBbData") {
