@@ -89,10 +89,14 @@ var TAB_NAMES = [
 ];
 var STATUS_ORDER = ["Connect", "Pending", "Cancel", "Un-Complete", "Other"];
 // Columns that must stay plain text -- Sheets otherwise auto-detects a
-// numeric-looking string as a real number (stripping leading zeros) or a
-// date, silently corrupting it. Text columns like district/channel names are
-// never numeric-looking, so this only needs to cover ID-shaped values.
-var TEXT_COLUMNS = ["key", "month", "bid", "file"];
+// numeric-looking string as a real number (stripping leading zeros), or a
+// human-readable string as a DATE ("March 2026" silently became an actual
+// date value, and reconstructPayload_ got a JS Date object back instead of
+// the string -- exactly what happened to "label" before this list included
+// it), silently corrupting either way. Text columns like district/channel
+// names are never date-or-numeric-looking, so this only needs to cover
+// ID-shaped and date-ish-looking values specifically.
+var TEXT_COLUMNS = ["key", "month", "bid", "file", "label", "short", "mtime"];
 
 function doPost(e) {
   try {
