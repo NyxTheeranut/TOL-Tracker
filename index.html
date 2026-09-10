@@ -322,6 +322,12 @@
          column keeps breathing room instead of getting squeezed toward 0 on
          a narrow window; .table-scroll below scrolls horizontally past that. */
       #bldgTable { min-width: 960px; }
+      /* bldgDailyTable can have up to 31 day columns (vs bldgTable's up to 12
+         month columns) -- narrower per-day width keeps the total table width
+         sane, since these cells only ever hold a small install count. */
+      #bldgDailyTable th:nth-child(2), #bldgDailyTable td:nth-child(2) { width: 132px; }
+      #bldgDailyTable th.num, #bldgDailyTable td.num { width: 46px; }
+      #bldgDailyTable { min-width: 900px; }
       table.dtable th {
         text-align: left; font-size: 10px; font-weight: 600; letter-spacing: 0.05em;
         text-transform: uppercase; color: var(--text-3);
@@ -734,6 +740,15 @@
             <button class="expbtn" data-export="buildings" title="Download the rows as shown — current month, filter and sort">↓ CSV</button>
           </div>
           <div class="table-scroll"><table class="dtable" id="bldgTable"></table></div>
+        </div>
+        <div class="card" style="margin-top: 14px">
+          <div class="card-head"><div><h3>Buildings — per day</h3><div class="card-sub" id="bldgDailySub"></div></div></div>
+          <div class="toolbar">
+            <input class="search" id="bldgDailySearch" type="text" placeholder="Filter by building or district…" />
+            <span class="count" id="bldgDailyCount"></span>
+            <button class="expbtn" data-export="buildingsDaily" title="Download the rows as shown — current month, filter and sort">↓ CSV</button>
+          </div>
+          <div class="table-scroll"><table class="dtable" id="bldgDailyTable"></table></div>
         </div>
       </div>
 
@@ -1521,10 +1536,11 @@
         /* Nested channel > sub-channel > territory > dealer rows. Every node has its
            own toggle; `expanded` is keyed "<row>><i.j.k>" so open state survives a
            re-render from search, a sibling toggle, or a month change. */
-        function bdRows(nodes, rowKey, path, depth, expanded, pad) {
+        function bdRows(nodes, rowKey, path, depth, expanded, pad, gaFn) {
+          gaFn = gaFn || ga;
           let html = "";
           nodes.forEach((n, i) => {
-            if (ga(n) === 0) return;
+            if (gaFn(n) === 0) return;
             const p = path.concat(i), ek = rowKey + ">" + p.join(".");
             const kids = !!(n.children && n.children.length);
             const open = expanded.has(ek);
@@ -1628,6 +1644,81 @@
           wireSearch("bldgSearch", "bldgCount", () => all,
             (r, q) => r.name.toLowerCase().includes(q) || (r.district || "").toLowerCase().includes(q),
             render, "bldgTable", 3 + MONTHS.length);
+        }
+
+        /* ── Buildings, split by day instead of by month ──────────────────────
+           Deliberately reads RAW.buildingsDaily (not DATA.*) -- this is always
+           the current/most-recent month's Connect installs, day by day, and
+           doesn't participate in the Connect/Register toggle or the month-tile
+           selector the way every other table on the page does. Same drill-down
+           mechanic (bdRows/wireRows) as renderBuildings(), just keyed by day. */
+        const expBldgDaily = new Set();
+        function gaDaily(r) {
+          let t = 0;
+          for (const k in r.m) t += r.m[k].g || 0;
+          return t;
+        }
+        function smDaily(m) {
+          let t = 0;
+          for (const k in m) t += m[k].r || 0;
+          return t;
+        }
+        function renderBuildingsDaily() {
+          const bd = RAW.buildingsDaily;
+          const days = Array.from({ length: bd.days }, (_, i) => i + 1);
+          const all = bd.rows;
+          const topOverall = all.reduce((a, r) => (gaDaily(r) > gaDaily(a) ? r : a), all[0]);
+          const maxG = Math.max(...all.map((r) => gaDaily(r)), 1);
+
+          document.getElementById("bldgDailySub").innerHTML =
+            fmt(all.length) + " buildings had installs in " + esc(bd.label) +
+            (bd.partial ? " <span style='color:var(--st-warn)'>(through day " + bd.elapsedDays + "/" + bd.days + ")</span>" : "") +
+            ". <strong>Click a row</strong> to drill into channel → sub-channel → territory → dealer, or a column " +
+            "header to re-sort.";
+
+          const cols = [{ key: "name", label: "Building", val: (r) => r.name },
+                        { key: "district", label: "District", val: (r) => r.district || "" }]
+            .concat(days.map((d) => ({ key: "d_" + d, label: String(d), num: true, val: (r) => (r.m[d] || {}).g || 0 })))
+            .concat([{ key: "total", label: "Total", num: true, val: (r) => gaDaily(r) }]);
+          const def = { key: "total", dir: -1 };
+
+          const pad = (n) =>
+            "<td></td>" + days.map((d) => "<td class='num'>" + cell(n.m[d]) + "</td>").join("") +
+            "<td class='num lead'>" + fmt(gaDaily(n)) + "</td>";
+
+          let cur = all;
+          function render(list) {
+            cur = list;
+            const sorted = sortRows("bldgDailyTable", list, cols, def);
+            EXPORTS.buildingsDaily = () => ({
+              name: "buildings-daily",
+              header: ["Building", "Building ID", "District"].concat(days.map(String)).concat(["Total installs", "Revenue"]),
+              rows: sorted.map((r) => [r.name, r.bid || "", r.district || ""]
+                .concat(days.map((d) => (r.m[d] || {}).g || 0))
+                .concat([gaDaily(r), Math.round(smDaily(r.m))])),
+            });
+            let h = thead("bldgDailyTable", cols, def) + "<tbody>";
+            sorted.forEach((r) => {
+              const g = gaDaily(r), kids = r.breakdown && r.breakdown.length, open = expBldgDaily.has(r.name);
+              h += "<tr class='" + (kids ? "expandable" : "") + "' data-key='" + esc(r.name) + "'>" +
+                "<td class='rowbar'><span class='fill' style='width:" + (g / maxG) * 100 + "%'></span><span class='name'>" +
+                (kids ? "<span class='tog" + (open ? " on" : "") + "'>" + (open ? "−" : "+") + "</span>" : "<span style='width:15px;flex:none'></span>") +
+                "<span class='nm' style='font-weight:600'>" + esc(r.name) + "</span>" +
+                (r.bid ? "<span class='bid'>#" + esc(r.bid) + "</span>" : "") +
+                (r === topOverall ? "<span class='pill top'>TOP</span>" : "") + "</span></td>" +
+                "<td><span class='pill dist' style='background:" + districtColor(r.district) + "22;color:" + districtColor(r.district) + "'>" + esc(r.district) + "</span></td>" +
+                days.map((d) => "<td class='num'>" + cell(r.m[d]) + "</td>").join("") +
+                "<td class='num lead'>" + fmt(g) + "</td></tr>";
+              if (kids && open) h += bdRows(r.breakdown, r.name, [], 0, expBldgDaily, pad, gaDaily);
+            });
+            const t = document.getElementById("bldgDailyTable");
+            t.innerHTML = h + "</tbody>";
+            wireRows(t, expBldgDaily, render, () => cur);
+          }
+          RERENDER.bldgDailyTable = () => render(cur);
+          wireSearch("bldgDailySearch", "bldgDailyCount", () => all,
+            (r, q) => r.name.toLowerCase().includes(q) || (r.district || "").toLowerCase().includes(q),
+            render, "bldgDailyTable", 3 + days.length);
         }
 
         function renderTerritory() {
@@ -1736,6 +1827,7 @@
           renderTech();
           renderFtthTiles();
           renderBuildings();
+          renderBuildingsDaily();
           renderTerritory();
           renderSubChannel();
           renderDealers();

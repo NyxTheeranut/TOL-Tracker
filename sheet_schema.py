@@ -39,6 +39,12 @@ BuildingsBreakdown  one row per (mode, building, channel, specialChannel,
                   way build_breakdown() does in aggregate_bb.py, so storing
                   them too would be redundant, bigger, and a second place
                   they could drift out of sync with the leaves.
+BuildingsDaily, BuildingsDailyBreakdown  same idea as Buildings/
+                  BuildingsBreakdown, but for out["buildingsDaily"] --
+                  the current month only, day instead of month, Connect
+                  installs only, so no "mode" column (there's only one).
+                  monthKey/days/elapsedDays/partial live as extra Meta
+                  columns rather than their own one-row tab.
 """
 import calendar
 from collections import defaultdict
@@ -119,12 +125,15 @@ def flatten(out):
     tabs = {}
 
     meta = out["meta"]
+    bd_meta = out["buildingsDaily"]
     tabs["Meta"] = {
         "header": ["province", "ftthSourceFile", "ftthSourceMTime", "ftthRowCount", "generatedAt",
-                   "totalActiveFtth", "totalVillages", "totalBuildings", "matchedCount", "matchRateVillages"],
+                   "totalActiveFtth", "totalVillages", "totalBuildings", "matchedCount", "matchRateVillages",
+                   "bdMonthKey", "bdDays", "bdElapsedDays", "bdPartial"],
         "rows": [[meta["province"], meta["ftthSourceFile"], meta["ftthSourceMTime"], meta["ftthRowCount"],
                   meta["generatedAt"], meta["totalActiveFtth"], meta["totalVillages"], meta["totalBuildings"],
-                  meta["matchedCount"], meta["matchRateVillages"]]],
+                  meta["matchedCount"], meta["matchRateVillages"],
+                  bd_meta["monthKey"], bd_meta["days"], bd_meta["elapsedDays"], bd_meta["partial"]]],
     }
 
     months_header = ["key", "short", "days", "elapsedDays", "partial", "file", "mtime",
@@ -217,6 +226,23 @@ def flatten(out):
         "header": ["mode", "building", "channel", "specialChannel", "territory", "partner", "month", "ga", "revenue"],
         "rows": leaf_rows,
     }
+
+    bd_rows, bd_leaf_rows = [], []
+    for r in out["buildingsDaily"]["rows"]:
+        for day, v in r["m"].items():
+            bd_rows.append([r["name"], day, v["g"], v["r"], r.get("district", ""), r.get("bid") or ""])
+        for channel_node in r["breakdown"]:
+            for special_node in channel_node.get("children", []):
+                for territory_node in special_node.get("children", []):
+                    for partner_node in territory_node.get("children", []):
+                        for day, v in partner_node["m"].items():
+                            bd_leaf_rows.append([r["name"], channel_node["name"], special_node["name"],
+                                                  territory_node["name"], partner_node["name"], day, v["g"], v["r"]])
+    tabs["BuildingsDaily"] = {"header": ["building", "day", "ga", "revenue", "district", "bid"], "rows": bd_rows}
+    tabs["BuildingsDailyBreakdown"] = {
+        "header": ["building", "channel", "specialChannel", "territory", "partner", "day", "ga", "revenue"],
+        "rows": bd_leaf_rows,
+    }
     return tabs
 
 
@@ -277,12 +303,78 @@ def _rebuild_breakdown_tree(leaf_rows):
     return rollup(root, 0)
 
 
+def _rebuild_breakdown_tree_simple(leaf_rows):
+    """Same as _rebuild_breakdown_tree, for BuildingsDailyBreakdown's leaner
+    row shape (no mode/building columns -- caller already grouped by
+    building, and there's only ever one mode: Connect)."""
+    root = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(
+        lambda: {"g": 0, "r": 0.0}
+    )))))
+    for channel, special, territory, partner, day, ga, revenue in leaf_rows:
+        b = root[channel][special][territory][partner][day]
+        b["g"] += ga
+        b["r"] += revenue
+
+    def rollup(d, depth):
+        items = []
+        for name, val in d.items():
+            if depth == 3:
+                m = {dk: {"g": b["g"], "r": round(b["r"], 2)} for dk, b in val.items() if b["g"]}
+                if m:
+                    items.append({"name": name, "m": m})
+            else:
+                kids = rollup(val, depth + 1)
+                if not kids:
+                    continue
+                agg = defaultdict(lambda: {"g": 0, "r": 0.0})
+                for k in kids:
+                    for dk, e in k["m"].items():
+                        agg[dk]["g"] += e["g"]
+                        agg[dk]["r"] += e["r"]
+                items.append({"name": name, "m": {dk: {"g": v["g"], "r": round(v["r"], 2)} for dk, v in agg.items()}, "children": kids})
+        items.sort(key=lambda x: -sum(v["g"] for v in x["m"].values()))
+        return items
+
+    return rollup(root, 0)
+
+
+def _buildings_daily_from_tabs(tabs, month_key, days, elapsed_days, partial):
+    by_name = {}
+    order = []
+    for building, day, ga, revenue, district, bid in tabs["BuildingsDaily"]["rows"]:
+        if building not in by_name:
+            by_name[building] = {"name": building, "m": {}, "district": district, "bid": bid or None}
+            order.append(building)
+        by_name[building]["m"][day] = {"g": ga, "r": revenue}
+    leaves_by_building = defaultdict(list)
+    for row in tabs["BuildingsDailyBreakdown"]["rows"]:
+        leaves_by_building[row[0]].append(row[1:])
+    rows = []
+    for name in order:
+        entry = by_name[name]
+        entry["breakdown"] = _rebuild_breakdown_tree_simple(leaves_by_building.get(name, []))
+        rows.append(entry)
+    rows.sort(key=lambda r: -sum(v["g"] for v in r["m"].values()))
+    return {
+        "monthKey": month_key, "label": label_from_key(month_key),
+        "days": days, "elapsedDays": elapsed_days, "partial": partial,
+        "rows": rows,
+    }
+
+
 def reconstruct(tabs):
     """Rebuilds aggregate_bb.build_output()'s exact nested shape from flat
     tabs -- the inverse of flatten(). Used here to self-test the schema
     losslessly captures everything; ported to JS in the Apps Script for the
     real read path (Apps Script can't import this module directly)."""
     meta_row = dict(zip(tabs["Meta"]["header"], tabs["Meta"]["rows"][0]))
+    # bd* columns are BuildingsDaily plumbing, not part of the real `meta`
+    # object build_output() produces -- pull them out before meta_row becomes
+    # out["meta"] below, so reconstruct() stays a byte-for-byte round-trip.
+    bd_month_key = meta_row.pop("bdMonthKey")
+    bd_days = meta_row.pop("bdDays")
+    bd_elapsed_days = meta_row.pop("bdElapsedDays")
+    bd_partial = meta_row.pop("bdPartial")
 
     months_by_key = {}
     months_order = []
@@ -420,6 +512,7 @@ def reconstruct(tabs):
         "meta": meta_row,
         "months": months,
         "register": register_block,
+        "buildingsDaily": _buildings_daily_from_tabs(tabs, bd_month_key, bd_days, bd_elapsed_days, bd_partial),
     }
     out.update(connect_block)
     return out
@@ -654,4 +747,9 @@ def merge_months(existing_out, new_out, max_months):
 
     out = {"meta": meta, "months": merged_months, "register": register_block}
     out.update(connect_block)
+    # Current-month-only, never merged across runs -- always the fresh local
+    # recomputation, same as the local dashboard rebuilding it from scratch
+    # every time. Falls back to whatever's already synced only on the (rare)
+    # local-folder-is-empty path build_output() would itself refuse to run.
+    out["buildingsDaily"] = new_out["buildingsDaily"]
     return out

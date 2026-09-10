@@ -83,9 +83,20 @@
  */
 
 var TAB_NAMES = [
-  "Meta", "Months", "Daily", "District", "Channel", "SubChannel",
-  "DealerTerritory", "Supervisor", "Technology", "Buildings",
-  "VillagesFtthOnly", "BuildingsBreakdown",
+  "Meta",
+  "Months",
+  "Daily",
+  "District",
+  "Channel",
+  "SubChannel",
+  "DealerTerritory",
+  "Supervisor",
+  "Technology",
+  "Buildings",
+  "VillagesFtthOnly",
+  "BuildingsBreakdown",
+  "BuildingsDaily",
+  "BuildingsDailyBreakdown",
 ];
 var STATUS_ORDER = ["Connect", "Pending", "Cancel", "Un-Complete", "Other"];
 // Columns that must stay plain text -- Sheets otherwise auto-detects a
@@ -99,10 +110,24 @@ var STATUS_ORDER = ["Connect", "Pending", "Cancel", "Un-Complete", "Other"];
 // every other column here; deriving it from "key" sidesteps that entirely.)
 var TEXT_COLUMNS = ["key", "month", "bid", "file", "short", "mtime"];
 
-var MONTH_NAMES_ = ["", "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December"];
+var MONTH_NAMES_ = [
+  "",
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
 function labelFromKey_(key) {
-  var y = String(key).substring(0, 4), m = parseInt(String(key).substring(4, 6), 10);
+  var y = String(key).substring(0, 4),
+    m = parseInt(String(key).substring(4, 6), 10);
   return MONTH_NAMES_[m] + " " + y;
 }
 
@@ -120,7 +145,10 @@ function doPost(e) {
       // gated by the same secret (not a person signing in, so no ID token).
       requireSyncSecret_(body.secret);
       var tabs = readAllTabs_();
-      return jsonResponse_({ ok: true, payload: tabs ? reconstructPayload_(tabs) : null });
+      return jsonResponse_({
+        ok: true,
+        payload: tabs ? reconstructPayload_(tabs) : null,
+      });
     }
 
     if (body.action === "syncBbData") {
@@ -148,8 +176,12 @@ function doGet(e) {
 // ---------- auth ----------
 
 function requireSyncSecret_(secret) {
-  var expected = PropertiesService.getScriptProperties().getProperty("SYNC_SECRET");
-  if (!expected) throw new Error("SYNC_SECRET script property is not set -- see setup notes at the top of this file");
+  var expected =
+    PropertiesService.getScriptProperties().getProperty("SYNC_SECRET");
+  if (!expected)
+    throw new Error(
+      "SYNC_SECRET script property is not set -- see setup notes at the top of this file",
+    );
   if (secret !== expected) throw new Error("forbidden: bad sync secret");
 }
 
@@ -158,13 +190,18 @@ function requireSyncSecret_(secret) {
 function verifyIdToken_(idToken) {
   if (!idToken) return null;
   var resp = UrlFetchApp.fetch(
-    "https://oauth2.googleapis.com/tokeninfo?id_token=" + encodeURIComponent(idToken),
-    { muteHttpExceptions: true }
+    "https://oauth2.googleapis.com/tokeninfo?id_token=" +
+      encodeURIComponent(idToken),
+    { muteHttpExceptions: true },
   );
   if (resp.getResponseCode() !== 200) return null;
   var data = JSON.parse(resp.getContentText());
-  var expectedClientId = PropertiesService.getScriptProperties().getProperty("OAUTH_CLIENT_ID");
-  if (!expectedClientId) throw new Error("OAUTH_CLIENT_ID script property is not set -- see setup notes at the top of this file");
+  var expectedClientId =
+    PropertiesService.getScriptProperties().getProperty("OAUTH_CLIENT_ID");
+  if (!expectedClientId)
+    throw new Error(
+      "OAUTH_CLIENT_ID script property is not set -- see setup notes at the top of this file",
+    );
   if (data.aud !== expectedClientId) return null;
   if (!data.email || data.email_verified !== "true") return null;
   return data.email;
@@ -179,7 +216,10 @@ function isAllowedUser_(email) {
   if (!sheet) {
     sheet = ss.insertSheet("Users");
     sheet.appendRow(["email", "note"]);
-    sheet.appendRow(["example@gmail.com", "sample row -- replace with your team, then delete this"]);
+    sheet.appendRow([
+      "example@gmail.com",
+      "sample row -- replace with your team, then delete this",
+    ]);
     sheet.setFrozenRows(1);
     return false; // just created -- nothing real to match against yet
   }
@@ -188,7 +228,8 @@ function isAllowedUser_(email) {
   var emailCol = header.indexOf("email");
   if (emailCol === -1) return false;
   for (var i = 1; i < data.length; i++) {
-    if (String(data[i][emailCol]).trim().toLowerCase() === email.toLowerCase()) return true;
+    if (String(data[i][emailCol]).trim().toLowerCase() === email.toLowerCase())
+      return true;
   }
   return false;
 }
@@ -204,11 +245,19 @@ function myBbData_(idToken) {
     return {
       ok: false,
       error: "no_access",
-      message: "This Google account (" + email + ") isn't set up yet. Ask an admin to add it to the Users tab.",
+      message:
+        "This Google account (" +
+        email +
+        ") isn't set up yet. Ask an admin to add it to the Users tab.",
     };
   }
   var tabs = readAllTabs_();
-  if (!tabs) return { ok: false, error: "no_data", message: "No data has been synced yet -- run update_bb_sheet.py." };
+  if (!tabs)
+    return {
+      ok: false,
+      error: "no_data",
+      message: "No data has been synced yet -- run update_bb_sheet.py.",
+    };
   var payload = reconstructPayload_(tabs);
   return { ok: true, email: email, payload: payload };
 }
@@ -292,31 +341,60 @@ function writeTab_(name, header, rows) {
 function rowObjects_(tab) {
   return tab.rows.map(function (row) {
     var obj = {};
-    tab.header.forEach(function (h, i) { obj[h] = row[i]; });
+    tab.header.forEach(function (h, i) {
+      obj[h] = row[i];
+    });
     return obj;
   });
 }
 
 function reconstructPayload_(tabs) {
   var meta = rowObjects_(tabs.Meta)[0];
+  // bd* columns are BuildingsDaily plumbing, not part of the real `meta`
+  // object build_output() produces -- pull them out before `meta` becomes
+  // out.meta below, mirroring sheet_schema.py's reconstruct().
+  var bdMonthKey = meta.bdMonthKey,
+    bdDays = meta.bdDays,
+    bdElapsedDays = meta.bdElapsedDays,
+    bdPartial = meta.bdPartial;
+  delete meta.bdMonthKey;
+  delete meta.bdDays;
+  delete meta.bdElapsedDays;
+  delete meta.bdPartial;
 
   var monthsByKey = {};
   var monthsOrder = [];
   rowObjects_(tabs.Months).forEach(function (r) {
     var m = {
-      key: r.key, label: labelFromKey_(r.key), short: r.short, days: r.days,
-      elapsedDays: r.elapsedDays, partial: r.partial, file: r.file, mtime: r.mtime,
-      installs: r.installs, dupes: r.dupes, otherStatus: r.otherStatus, nonKpiConnect: r.nonKpiConnect,
+      key: r.key,
+      label: labelFromKey_(r.key),
+      short: r.short,
+      days: r.days,
+      elapsedDays: r.elapsedDays,
+      partial: r.partial,
+      file: r.file,
+      mtime: r.mtime,
+      installs: r.installs,
+      dupes: r.dupes,
+      otherStatus: r.otherStatus,
+      nonKpiConnect: r.nonKpiConnect,
       totals: { ga: r.ga, revenue: r.revenue, target: r.target },
       installsReg: r.installsReg,
       totalsReg: { ga: r.gaReg, revenue: r.revenueReg, target: 0 },
-      daily: [], dailyReg: [],
-      installsRegByStatus: {}, totalsRegByStatus: {}, dailyRegByStatus: {},
+      daily: [],
+      dailyReg: [],
+      installsRegByStatus: {},
+      totalsRegByStatus: {},
+      dailyRegByStatus: {},
     };
     STATUS_ORDER.forEach(function (s) {
       var key = s.replace("-", "");
       m.installsRegByStatus[s] = r["reg_" + key];
-      m.totalsRegByStatus[s] = { ga: r["reg_" + key], revenue: r["regRev_" + key], target: 0 };
+      m.totalsRegByStatus[s] = {
+        ga: r["reg_" + key],
+        revenue: r["regRev_" + key],
+        target: 0,
+      };
       m.dailyRegByStatus[s] = [];
     });
     // installsRegByStatus (fixed, canonical labels) already carries the same
@@ -326,7 +404,8 @@ function reconstructPayload_(tabs) {
     // whatever oddball raw status string(s) actually produced it.
     m.registerByStatus = {};
     STATUS_ORDER.forEach(function (s) {
-      if (m.installsRegByStatus[s]) m.registerByStatus[s] = m.installsRegByStatus[s];
+      if (m.installsRegByStatus[s])
+        m.registerByStatus[s] = m.installsRegByStatus[s];
     });
     monthsByKey[r.key] = m;
     monthsOrder.push(r.key);
@@ -342,22 +421,30 @@ function reconstructPayload_(tabs) {
   // every day 1..days is present, as the frontend expects.
   function padDays(entries, days) {
     var byDay = {};
-    entries.forEach(function (d) { byDay[d.day] = d; });
+    entries.forEach(function (d) {
+      byDay[d.day] = d;
+    });
     var out = [];
-    for (var d = 1; d <= days; d++) out.push(byDay[d] || { day: d, ga: 0, revenue: 0 });
+    for (var d = 1; d <= days; d++)
+      out.push(byDay[d] || { day: d, ga: 0, revenue: 0 });
     return out;
   }
   monthsOrder.forEach(function (mk) {
     var m = monthsByKey[mk];
     m.daily = padDays(m.daily, m.days);
     m.dailyReg = padDays(m.dailyReg, m.days);
-    STATUS_ORDER.forEach(function (s) { m.dailyRegByStatus[s] = padDays(m.dailyRegByStatus[s], m.days); });
+    STATUS_ORDER.forEach(function (s) {
+      m.dailyRegByStatus[s] = padDays(m.dailyRegByStatus[s], m.days);
+    });
   });
-  var months = monthsOrder.map(function (mk) { return monthsByKey[mk]; });
+  var months = monthsOrder.map(function (mk) {
+    return monthsByKey[mk];
+  });
 
   // ---- breakdown dimensions (District/Channel/SubChannel/DealerTerritory/Supervisor) ----
   function rowsToListify(rows, withImport, withTarget) {
-    var byName = {}, order = [];
+    var byName = {},
+      order = [];
     rows.forEach(function (r) {
       if (!(r.name in byName)) {
         byName[r.name] = { name: r.name, m: {} };
@@ -376,11 +463,18 @@ function reconstructPayload_(tabs) {
         byName[r.name].t[r.month] = r.target;
       }
     });
-    var result = order.map(function (n) { return byName[n]; });
+    var result = order.map(function (n) {
+      return byName[n];
+    });
     result.sort(function (a, b) {
-      var sa = 0, sb = 0;
-      Object.keys(a.m).forEach(function (k) { sa += a.m[k].g; });
-      Object.keys(b.m).forEach(function (k) { sb += b.m[k].g; });
+      var sa = 0,
+        sb = 0;
+      Object.keys(a.m).forEach(function (k) {
+        sa += a.m[k].g;
+      });
+      Object.keys(b.m).forEach(function (k) {
+        sb += b.m[k].g;
+      });
       return sb - sa;
     });
     return result;
@@ -395,7 +489,9 @@ function reconstructPayload_(tabs) {
   ];
 
   function rowsForMode(tabName, mode, withImport, withTarget) {
-    var rows = rowObjects_(tabs[tabName]).filter(function (r) { return r.mode === mode; });
+    var rows = rowObjects_(tabs[tabName]).filter(function (r) {
+      return r.mode === mode;
+    });
     return rowsToListify(rows, withImport, withTarget);
   }
 
@@ -411,12 +507,18 @@ function reconstructPayload_(tabs) {
 
   // ---- buildings / villages ----
   function villagesForMode(mode) {
-    var byKey = {}, order = [];
+    var byKey = {},
+      order = [];
     rowObjects_(tabs.Buildings).forEach(function (r) {
       if (r.mode !== mode) return;
       var key = r.category + "|" + r.name;
       if (!byKey[key]) {
-        var entry = { name: r.name, m: {}, district: r.district, bid: r.bid || null };
+        var entry = {
+          name: r.name,
+          m: {},
+          district: r.district,
+          bid: r.bid || null,
+        };
         if (r.category === "matched") entry.activeFtth = r.activeFtth;
         byKey[key] = entry;
         order.push({ key: key, category: r.category });
@@ -431,24 +533,40 @@ function reconstructPayload_(tabs) {
       leavesByBuilding[r.building].push(r);
     });
 
-    var matched = [], bbOnly = [];
+    var matched = [],
+      bbOnly = [];
     order.forEach(function (o) {
       var entry = byKey[o.key];
-      entry.breakdown = rebuildBreakdownTree_(leavesByBuilding[entry.name] || []);
+      entry.breakdown = rebuildBreakdownTree_(
+        leavesByBuilding[entry.name] || [],
+      );
       (o.category === "matched" ? matched : bbOnly).push(entry);
     });
-    matched.sort(function (a, b) { return b.activeFtth - a.activeFtth; });
+    matched.sort(function (a, b) {
+      return b.activeFtth - a.activeFtth;
+    });
     bbOnly.sort(function (a, b) {
-      var sa = 0, sb = 0;
-      Object.keys(a.m).forEach(function (k) { sa += a.m[k].g; });
-      Object.keys(b.m).forEach(function (k) { sb += b.m[k].g; });
+      var sa = 0,
+        sb = 0;
+      Object.keys(a.m).forEach(function (k) {
+        sa += a.m[k].g;
+      });
+      Object.keys(b.m).forEach(function (k) {
+        sb += b.m[k].g;
+      });
       return sb - sa;
     });
 
     var ftthOnly = rowObjects_(tabs.VillagesFtthOnly)
-      .filter(function (r) { return r.mode === mode; })
-      .map(function (r) { return { name: r.name, activeFtth: r.activeFtth }; });
-    ftthOnly.sort(function (a, b) { return b.activeFtth - a.activeFtth; });
+      .filter(function (r) {
+        return r.mode === mode;
+      })
+      .map(function (r) {
+        return { name: r.name, activeFtth: r.activeFtth };
+      });
+    ftthOnly.sort(function (a, b) {
+      return b.activeFtth - a.activeFtth;
+    });
 
     return { matched: matched, ftthOnly: ftthOnly, bbOnly: bbOnly };
   }
@@ -461,9 +579,12 @@ function reconstructPayload_(tabs) {
     var root = {};
     leafRows.forEach(function (r) {
       root[r.channel] = root[r.channel] || {};
-      root[r.channel][r.specialChannel] = root[r.channel][r.specialChannel] || {};
-      root[r.channel][r.specialChannel][r.territory] = root[r.channel][r.specialChannel][r.territory] || {};
-      root[r.channel][r.specialChannel][r.territory][r.partner] = root[r.channel][r.specialChannel][r.territory][r.partner] || {};
+      root[r.channel][r.specialChannel] =
+        root[r.channel][r.specialChannel] || {};
+      root[r.channel][r.specialChannel][r.territory] =
+        root[r.channel][r.specialChannel][r.territory] || {};
+      root[r.channel][r.specialChannel][r.territory][r.partner] =
+        root[r.channel][r.specialChannel][r.territory][r.partner] || {};
       var bucket = root[r.channel][r.specialChannel][r.territory][r.partner];
       bucket[r.month] = bucket[r.month] || { g: 0, r: 0 };
       bucket[r.month].g += r.ga;
@@ -478,7 +599,10 @@ function reconstructPayload_(tabs) {
           var m = {};
           var any = false;
           Object.keys(val).forEach(function (mk) {
-            if (val[mk].g) { m[mk] = { g: val[mk].g, r: Math.round(val[mk].r * 100) / 100 }; any = true; }
+            if (val[mk].g) {
+              m[mk] = { g: val[mk].g, r: Math.round(val[mk].r * 100) / 100 };
+              any = true;
+            }
           });
           if (any) items.push({ name: name, m: m });
         } else {
@@ -493,14 +617,21 @@ function reconstructPayload_(tabs) {
             });
           });
           var m2 = {};
-          Object.keys(agg).forEach(function (mk) { m2[mk] = { g: agg[mk].g, r: Math.round(agg[mk].r * 100) / 100 }; });
+          Object.keys(agg).forEach(function (mk) {
+            m2[mk] = { g: agg[mk].g, r: Math.round(agg[mk].r * 100) / 100 };
+          });
           items.push({ name: name, m: m2, children: kids });
         }
       });
       items.sort(function (a, b) {
-        var sa = 0, sb = 0;
-        Object.keys(a.m).forEach(function (k) { sa += a.m[k].g; });
-        Object.keys(b.m).forEach(function (k) { sb += b.m[k].g; });
+        var sa = 0,
+          sb = 0;
+        Object.keys(a.m).forEach(function (k) {
+          sa += a.m[k].g;
+        });
+        Object.keys(b.m).forEach(function (k) {
+          sb += b.m[k].g;
+        });
         return sb - sa;
       });
       return items;
@@ -512,8 +643,16 @@ function reconstructPayload_(tabs) {
   function modeBlock(mode, withTargets) {
     var block = {};
     DIMS.forEach(function (d) {
-      var key = d[0], tabName = d[1], withImport = d[2], withTarget = d[3];
-      block[key] = rowsForMode(tabName, mode, withImport, withTarget && withTargets);
+      var key = d[0],
+        tabName = d[1],
+        withImport = d[2],
+        withTarget = d[3];
+      block[key] = rowsForMode(
+        tabName,
+        mode,
+        withImport,
+        withTarget && withTargets,
+      );
     });
     block.supervisor = block.supervisor.slice(0, 20);
     block.technology = technologyForMode(mode);
@@ -525,16 +664,139 @@ function reconstructPayload_(tabs) {
   var registerBlock = modeBlock("register", false);
   var presentStatuses = {};
   rowObjects_(tabs.District).forEach(function (r) {
-    if (r.mode.indexOf("register:") === 0) presentStatuses[r.mode.split(":")[1]] = true;
+    if (r.mode.indexOf("register:") === 0)
+      presentStatuses[r.mode.split(":")[1]] = true;
   });
   var byStatus = {};
-  Object.keys(presentStatuses).sort().forEach(function (status) {
-    byStatus[status] = modeBlock("register:" + status, false);
-  });
+  Object.keys(presentStatuses)
+    .sort()
+    .forEach(function (status) {
+      byStatus[status] = modeBlock("register:" + status, false);
+    });
   registerBlock.byStatus = byStatus;
 
+  // ---- buildings-by-day (current month, Connect only) ----
+  function rebuildBreakdownTreeSimple_(leafRows) {
+    // Same as rebuildBreakdownTree_, for BuildingsDailyBreakdown's leaner row
+    // shape (no mode/building columns -- caller already grouped by building,
+    // and there's only ever one mode: Connect) and day instead of month.
+    var root = {};
+    leafRows.forEach(function (r) {
+      root[r.channel] = root[r.channel] || {};
+      root[r.channel][r.specialChannel] =
+        root[r.channel][r.specialChannel] || {};
+      root[r.channel][r.specialChannel][r.territory] =
+        root[r.channel][r.specialChannel][r.territory] || {};
+      root[r.channel][r.specialChannel][r.territory][r.partner] =
+        root[r.channel][r.specialChannel][r.territory][r.partner] || {};
+      var bucket = root[r.channel][r.specialChannel][r.territory][r.partner];
+      bucket[r.day] = bucket[r.day] || { g: 0, r: 0 };
+      bucket[r.day].g += r.ga;
+      bucket[r.day].r += r.revenue;
+    });
+
+    function rollup(d, depth) {
+      var items = [];
+      Object.keys(d).forEach(function (name) {
+        var val = d[name];
+        if (depth === 3) {
+          var m = {};
+          var any = false;
+          Object.keys(val).forEach(function (dk) {
+            if (val[dk].g) {
+              m[dk] = { g: val[dk].g, r: Math.round(val[dk].r * 100) / 100 };
+              any = true;
+            }
+          });
+          if (any) items.push({ name: name, m: m });
+        } else {
+          var kids = rollup(val, depth + 1);
+          if (!kids.length) return;
+          var agg = {};
+          kids.forEach(function (k) {
+            Object.keys(k.m).forEach(function (dk) {
+              agg[dk] = agg[dk] || { g: 0, r: 0 };
+              agg[dk].g += k.m[dk].g;
+              agg[dk].r += k.m[dk].r;
+            });
+          });
+          var m2 = {};
+          Object.keys(agg).forEach(function (dk) {
+            m2[dk] = { g: agg[dk].g, r: Math.round(agg[dk].r * 100) / 100 };
+          });
+          items.push({ name: name, m: m2, children: kids });
+        }
+      });
+      items.sort(function (a, b) {
+        var sa = 0,
+          sb = 0;
+        Object.keys(a.m).forEach(function (k) {
+          sa += a.m[k].g;
+        });
+        Object.keys(b.m).forEach(function (k) {
+          sb += b.m[k].g;
+        });
+        return sb - sa;
+      });
+      return items;
+    }
+
+    return rollup(root, 0);
+  }
+
+  function buildingsDailyFromTabs_() {
+    var byName = {},
+      order = [];
+    rowObjects_(tabs.BuildingsDaily).forEach(function (r) {
+      if (!byName[r.building]) {
+        byName[r.building] = {
+          name: r.building,
+          m: {},
+          district: r.district,
+          bid: r.bid || null,
+        };
+        order.push(r.building);
+      }
+      byName[r.building].m[r.day] = { g: r.ga, r: r.revenue };
+    });
+    var leavesByBuilding = {};
+    rowObjects_(tabs.BuildingsDailyBreakdown).forEach(function (r) {
+      if (!leavesByBuilding[r.building]) leavesByBuilding[r.building] = [];
+      leavesByBuilding[r.building].push(r);
+    });
+    var rows = order.map(function (name) {
+      var entry = byName[name];
+      entry.breakdown = rebuildBreakdownTreeSimple_(
+        leavesByBuilding[name] || [],
+      );
+      return entry;
+    });
+    rows.sort(function (a, b) {
+      var sa = 0,
+        sb = 0;
+      Object.keys(a.m).forEach(function (k) {
+        sa += a.m[k].g;
+      });
+      Object.keys(b.m).forEach(function (k) {
+        sb += b.m[k].g;
+      });
+      return sb - sa;
+    });
+    return {
+      monthKey: bdMonthKey,
+      label: labelFromKey_(bdMonthKey),
+      days: bdDays,
+      elapsedDays: bdElapsedDays,
+      partial: bdPartial,
+      rows: rows,
+    };
+  }
+
   var out = { meta: meta, months: months, register: registerBlock };
-  Object.keys(connectBlock).forEach(function (k) { out[k] = connectBlock[k]; });
+  Object.keys(connectBlock).forEach(function (k) {
+    out[k] = connectBlock[k];
+  });
+  out.buildingsDaily = buildingsDailyFromTabs_();
   return out;
 }
 
