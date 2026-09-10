@@ -322,12 +322,16 @@
          column keeps breathing room instead of getting squeezed toward 0 on
          a narrow window; .table-scroll below scrolls horizontally past that. */
       #bldgTable { min-width: 960px; }
-      /* bldgDailyTable can have up to 31 day columns (vs bldgTable's up to 12
-         month columns) -- narrower per-day width keeps the total table width
-         sane, since these cells only ever hold a small install count. */
+      /* bldgDailyTable's day-column count varies a lot -- 1 (a single day
+         picked from the Daily chart) up to 30 (month's end) -- so a fixed
+         min-width here would either starve the name column early in the
+         month or leave it absurdly wide later. renderBuildingsDaily() sets
+         min-width inline instead, sized to however many day columns are
+         actually showing right now. Narrower per-day width keeps the total
+         table width sane either way, since these cells only ever hold a
+         small install count. */
       #bldgDailyTable th:nth-child(2), #bldgDailyTable td:nth-child(2) { width: 132px; }
       #bldgDailyTable th.num, #bldgDailyTable td.num { width: 46px; }
-      #bldgDailyTable { min-width: 900px; }
       table.dtable th {
         text-align: left; font-size: 10px; font-weight: 600; letter-spacing: 0.05em;
         text-transform: uppercase; color: var(--text-3);
@@ -759,7 +763,7 @@
             <div><h3>Dealer territory</h3><div class="card-sub" id="territorySub"></div></div>
             <button class="expbtn" data-export="territory" title="Download the rows as shown — current month, filter and sort">↓ CSV</button>
           </div>
-          <div class="table-flat" style="margin-top: 12px"><table class="dtable" id="dealerTerritoryTable"></table></div>
+          <div class="table-scroll" style="max-height: 590px; margin-top: 12px"><table class="dtable" id="dealerTerritoryTable"></table></div>
         </div>
         <div class="card">
           <div class="card-head">
@@ -1343,6 +1347,13 @@
             .join("");
         }
 
+        /* Which single day the Buildings-per-day card is pinned to, set by
+           clicking a bar below (only bars belonging to RAW.buildingsDaily's
+           month are clickable -- that's the only month with per-building day
+           data). null means the card's default: every elapsed day as its own
+           column. */
+        let selectedDailyDay = null;
+
         /* ── daily installs, stacked by district ───────────────────────────── */
         function renderStack() {
           const svg = document.getElementById("stackChart");
@@ -1374,11 +1385,34 @@
             if (ms.length > 1) svg.appendChild(txt({ x: padL + (start + m.daily.length / 2) * step, y: H - 6, class: "axis-label", "text-anchor": "middle" }, m.short));
           });
 
+          // Only the month RAW.buildingsDaily actually covers has per-building
+          // day data, so only its bars can drive that card -- other months'
+          // bars stay hover-only, same as before.
+          const clickableMonth = RAW.buildingsDaily.monthKey;
           pts.forEach((p, i) => {
             const x = padL + i * step + (step - bw) / 2;
             const h = (p.d.ga / max) * iH;
-            const r = svgEl("rect", { x, y: padT + iH - h, width: bw, height: Math.max(h, p.d.ga ? 1.2 : 0), rx: 2, fill: mcolor(p.m.key), class: "mark" });
-            hoverable(r, p.m.short + " " + p.d.day, ["Installs <b>" + fmt(p.d.ga) + "</b>", "<span class='t-dim'>" + money(p.d.revenue) + "</span>"]);
+            // m.daily is padded out to every calendar day (see aggregate_bb.py),
+            // but only elapsed days have actually happened -- a day that
+            // hasn't occurred yet would just pin the card to an empty result.
+            const isClickable = p.m.key === clickableMonth && p.d.day <= RAW.buildingsDaily.elapsedDays;
+            const isSelected = isClickable && selectedDailyDay === p.d.day;
+            const attrs = { x, y: padT + iH - h, width: bw, height: Math.max(h, p.d.ga ? 1.2 : 0), rx: 2, fill: mcolor(p.m.key), class: "mark" };
+            if (isSelected) {
+              attrs.stroke = "var(--ink)";
+              attrs["stroke-width"] = 2;
+            }
+            const r = svgEl("rect", attrs);
+            hoverable(r, p.m.short + " " + p.d.day, ["Installs <b>" + fmt(p.d.ga) + "</b>", "<span class='t-dim'>" + money(p.d.revenue) + "</span>"]
+              .concat(isClickable ? ["<span class='t-dim'>Click to see that day's buildings</span>"] : []));
+            if (isClickable) {
+              r.style.cursor = "pointer";
+              r.addEventListener("click", () => {
+                selectedDailyDay = isSelected ? null : p.d.day;
+                renderStack();
+                renderBuildingsDaily();
+              });
+            }
             svg.appendChild(r);
             if (ms.length === 1 && (p.d.day % 5 === 0 || p.d.day === 1))
               svg.appendChild(txt({ x: x + bw / 2, y: H - 6, class: "axis-label", "text-anchor": "middle" }, p.d.day));
@@ -1552,7 +1586,7 @@
               (kids ? "<span class='tog" + (open ? " on" : "") + "'>" + (open ? "−" : "+") + "</span>" : "<span style='width:15px;flex:none'></span>") +
               "<span class='bd-nm'>" + esc(n.name) + "</span>" + (imported ? "<span class='pill warn'>import</span>" : "") +
               "</div></td>" + pad(n) + "</tr>";
-            if (kids && open) html += bdRows(n.children, rowKey, p, depth + 1, expanded, pad);
+            if (kids && open) html += bdRows(n.children, rowKey, p, depth + 1, expanded, pad, gaFn);
           });
           return html;
         }
@@ -1665,26 +1699,55 @@
         }
         function renderBuildingsDaily() {
           const bd = RAW.buildingsDaily;
-          const days = Array.from({ length: bd.days }, (_, i) => i + 1);
-          const all = bd.rows;
-          const topOverall = all.reduce((a, r) => (gaDaily(r) > gaDaily(a) ? r : a), all[0]);
-          const maxG = Math.max(...all.map((r) => gaDaily(r)), 1);
+          const singleDay = selectedDailyDay;
+          // Only days that actually happened -- the rest of the month hasn't
+          // occurred yet, so a column full of "—" for it is just noise (and
+          // widens the table for nothing). Clicking a bar in the Daily chart
+          // above pins this to just that one day instead.
+          const days = singleDay != null ? [singleDay] : Array.from({ length: bd.elapsedDays }, (_, i) => i + 1);
+          const all = singleDay != null ? bd.rows.filter((r) => (r.m[singleDay] || {}).g > 0) : bd.rows;
+          // Pinned to one day, "total" would just repeat that day's own column
+          // and a building's breakdown tree should only show that day's leaf
+          // facts, not the whole month's -- so every total/sort/drill-down
+          // figure below is day-scoped instead of summed across all of `m`.
+          const totalG = singleDay != null ? (r) => (r.m[singleDay] || {}).g || 0 : gaDaily;
+          const totalR = singleDay != null ? (m) => (m[singleDay] || {}).r || 0 : smDaily;
+          const topOverall = all.reduce((a, r) => (totalG(r) > totalG(a) ? r : a), all[0]);
+          const maxG = Math.max(...all.map((r) => totalG(r)), 1);
+          // table-layout:fixed needs an explicit floor for the unconstrained
+          // Building column or it gets squeezed toward 0 once enough day
+          // columns are showing -- see #bldgDailyTable's CSS comment. Computed
+          // here (not a fixed CSS value) since the day count varies from 1
+          // (a single picked day) up to 30 (month's end).
+          document.getElementById("bldgDailyTable").style.minWidth =
+            (280 + 132 + (days.length + 1) * 46) + "px";
 
-          document.getElementById("bldgDailySub").innerHTML =
-            fmt(all.length) + " buildings had installs in " + esc(bd.label) +
-            (bd.partial ? " <span style='color:var(--st-warn)'>(through day " + bd.elapsedDays + "/" + bd.days + ")</span>" : "") +
-            ". <strong>Click a row</strong> to drill into channel → sub-channel → territory → dealer, or a column " +
-            "header to re-sort.";
+          document.getElementById("bldgDailySub").innerHTML = singleDay != null
+            ? fmt(all.length) + " buildings had installs on " + esc(bd.label) + " day " + singleDay +
+              ". <button type='button' class='linkbtn' id='bldgDailyClearDay'>Show every day</button> " +
+              "<strong>Click a row</strong> to drill into channel → sub-channel → territory → dealer, or a column header to re-sort."
+            : fmt(all.length) + " buildings had installs in " + esc(bd.label) +
+              (bd.partial ? " <span style='color:var(--st-warn)'>(through day " + bd.elapsedDays + "/" + bd.days + ")</span>" : "") +
+              ". <strong>Click a row</strong> to drill into channel → sub-channel → territory → dealer, or a column " +
+              "header to re-sort. <span style='color:var(--text-3)'>Tip: click a bar in Daily installs above to pin one day.</span>";
+          const clearBtn = document.getElementById("bldgDailyClearDay");
+          if (clearBtn) clearBtn.addEventListener("click", () => {
+            selectedDailyDay = null;
+            renderStack();
+            renderBuildingsDaily();
+          });
 
+          // A lone day column already IS the total, so skip appending a second,
+          // identical-looking "Total" column in single-day mode.
           const cols = [{ key: "name", label: "Building", val: (r) => r.name },
                         { key: "district", label: "District", val: (r) => r.district || "" }]
             .concat(days.map((d) => ({ key: "d_" + d, label: String(d), num: true, val: (r) => (r.m[d] || {}).g || 0 })))
-            .concat([{ key: "total", label: "Total", num: true, val: (r) => gaDaily(r) }]);
-          const def = { key: "total", dir: -1 };
+            .concat(singleDay != null ? [] : [{ key: "total", label: "Total", num: true, val: (r) => totalG(r) }]);
+          const def = singleDay != null ? { key: "d_" + singleDay, dir: -1 } : { key: "total", dir: -1 };
 
           const pad = (n) =>
             "<td></td>" + days.map((d) => "<td class='num'>" + cell(n.m[d]) + "</td>").join("") +
-            "<td class='num lead'>" + fmt(gaDaily(n)) + "</td>";
+            (singleDay != null ? "" : "<td class='num lead'>" + fmt(totalG(n)) + "</td>");
 
           let cur = all;
           function render(list) {
@@ -1695,11 +1758,11 @@
               header: ["Building", "Building ID", "District"].concat(days.map(String)).concat(["Total installs", "Revenue"]),
               rows: sorted.map((r) => [r.name, r.bid || "", r.district || ""]
                 .concat(days.map((d) => (r.m[d] || {}).g || 0))
-                .concat([gaDaily(r), Math.round(smDaily(r.m))])),
+                .concat([totalG(r), Math.round(totalR(r.m))])),
             });
             let h = thead("bldgDailyTable", cols, def) + "<tbody>";
             sorted.forEach((r) => {
-              const g = gaDaily(r), kids = r.breakdown && r.breakdown.length, open = expBldgDaily.has(r.name);
+              const g = totalG(r), kids = r.breakdown && r.breakdown.length, open = expBldgDaily.has(r.name);
               h += "<tr class='" + (kids ? "expandable" : "") + "' data-key='" + esc(r.name) + "'>" +
                 "<td class='rowbar'><span class='fill' style='width:" + (g / maxG) * 100 + "%'></span><span class='name'>" +
                 (kids ? "<span class='tog" + (open ? " on" : "") + "'>" + (open ? "−" : "+") + "</span>" : "<span style='width:15px;flex:none'></span>") +
@@ -1708,8 +1771,8 @@
                 (r === topOverall ? "<span class='pill top'>TOP</span>" : "") + "</span></td>" +
                 "<td><span class='pill dist' style='background:" + districtColor(r.district) + "22;color:" + districtColor(r.district) + "'>" + esc(r.district) + "</span></td>" +
                 days.map((d) => "<td class='num'>" + cell(r.m[d]) + "</td>").join("") +
-                "<td class='num lead'>" + fmt(g) + "</td></tr>";
-              if (kids && open) h += bdRows(r.breakdown, r.name, [], 0, expBldgDaily, pad, gaDaily);
+                (singleDay != null ? "" : "<td class='num lead'>" + fmt(g) + "</td>") + "</tr>";
+              if (kids && open) h += bdRows(r.breakdown, r.name, [], 0, expBldgDaily, pad, totalG);
             });
             const t = document.getElementById("bldgDailyTable");
             t.innerHTML = h + "</tbody>";
