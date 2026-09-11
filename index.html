@@ -590,17 +590,25 @@
         .hero-spark { min-height: 96px; }
       }
 
-      /* ── login gate ─────────────────────────────────────────────────────── */
-      .login-gate { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; background: var(--page); }
-      .login-card { width: 320px; max-width: calc(100% - 48px); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 34px 28px; text-align: center; }
-      .login-card h1 { font-size: 20px; font-weight: 700; margin: 16px 0 6px; color: var(--ink); }
-      .login-card h1 span { color: var(--accent); }
-      .login-card p { font-size: 13px; color: var(--text-3); margin: 0 0 22px; line-height: 1.5; }
+      /* ── login gate ─────────────────────────────────────────────────────────
+         Deliberately hardcoded light colors, NOT the var(--page)/var(--ink)/
+         etc tokens the rest of the app uses -- those flip dark under system
+         dark mode, but the sign-in screen should look the same for every
+         visitor regardless of their device theme, matching Route Planner's
+         login screen (also fixed-light, never dark). Same light values this
+         app's own :root already uses, just spelled out instead of referenced,
+         so it can't be pulled dark along with the rest of the page. */
+      .login-gate { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; background: #eef1f5; }
+      .login-card { width: 320px; max-width: calc(100% - 48px); background: #ffffff; border: 1px solid #e3e8ef; border-radius: 14px; box-shadow: 0 1px 2px rgba(18, 26, 43, 0.04), 0 4px 12px rgba(18, 26, 43, 0.04); padding: 34px 28px; text-align: center; }
+      .login-card h1 { font-size: 20px; font-weight: 700; margin: 16px 0 6px; color: #121a2b; }
+      .login-card h1 span { color: #12897f; }
+      .login-card p { font-size: 13px; color: #7b8695; margin: 0 0 22px; line-height: 1.5; }
       .login-card .bars-icon { justify-content: center; }
+      .login-card .bars-icon i { background: #0d8f83; }
       #gsiButton { display: flex; justify-content: center; min-height: 40px; }
-      .login-status { margin-top: 14px; font-size: 12.5px; color: var(--text-3); line-height: 1.5; display: none; }
-      .login-status.error { color: var(--st-crit); }
-      .login-spinner { width: 20px; height: 20px; margin: 0 auto; border-radius: 50%; border: 2.5px solid var(--line); border-top-color: var(--accent); animation: spin 0.8s linear infinite; }
+      .login-status { margin-top: 14px; font-size: 12.5px; color: #7b8695; line-height: 1.5; display: none; }
+      .login-status.error { color: #d03b3b; }
+      .login-spinner { width: 20px; height: 20px; margin: 0 auto; border-radius: 50%; border: 2.5px solid #e3e8ef; border-top-color: #12897f; animation: spin 0.8s linear infinite; }
       @keyframes spin { to { transform: rotate(360deg); } }
       @media (prefers-reduced-motion: reduce) { .login-spinner { animation: none; } }
     </style>
