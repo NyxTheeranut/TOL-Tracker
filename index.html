@@ -316,6 +316,12 @@
          widths below, and clips overflow instead. */
       table.dtable { width: 100%; min-width: 640px; table-layout: fixed; border-collapse: separate; border-spacing: 0; font-size: 12.5px; }
       table.dtable th.num, table.dtable td.num { width: 84px; }
+      /* subChannelTable sits in a .grid g-2 card (paired with Technology) --
+         only ~580-600px wide, narrower than the generic 640px floor above,
+         which forced pointless horizontal scroll (the Achieve% column
+         reading as clipped) even though 3 short numeric columns fit
+         comfortably well under 640px on their own. */
+      #subChannelTable { min-width: 420px; }
       #bldgTable th:nth-child(2), #bldgTable td:nth-child(2) { width: 132px; }
       /* bldgTable has the most fixed-width columns (District + up to 12 month
          cols + Total) of any .dtable -- give it a higher floor so the name
