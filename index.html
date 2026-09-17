@@ -613,24 +613,26 @@
       }
       @media (max-width: 620px) {
         .wrap { padding: 20px 14px 56px; }
-        /* Single column -- brand/stats/nav stack into rows in that DOM
-           order instead of trying to share the 3-column desktop layout,
-           which wouldn't have room to fit all three side by side anyway. */
+        /* Single column -- brand/stats stack into 2 rows in that DOM order
+           instead of trying to share the 3-column desktop layout, which
+           wouldn't have room to fit brand+nav+stats side by side anyway. */
         .topbar { padding: 10px 14px; grid-template-columns: 1fr; row-gap: 6px; }
-        /* grid-row:auto overrides the desktop rule's explicit row:1 on all
-           three -- otherwise, now that they all also share column 1 here,
-           they'd stack on TOP of each other in the same cell instead of
-           into separate rows. */
-        .brand, .topbar-right, .section-nav { grid-column: 1; grid-row: auto; }
+        /* grid-row:auto overrides the desktop rule's explicit row:1 --
+           otherwise, now that both also share column 1 here, they'd stack
+           on TOP of each other in the same cell instead of into rows. */
+        .brand, .topbar-right { grid-column: 1; grid-row: auto; }
         .topbar-right { justify-self: end; }
-        .section-nav { justify-self: start; }
-        /* This whole block is a sticky header on a phone, permanently
-           claiming screen height rather than just scrolling past once --
-           smaller type here buys back real vertical space, not just a
-           cosmetic tweak. */
+        /* The jump-links are a 3rd permanently-pinned row's worth of height
+           on a phone for comparatively little payoff -- touch-scrolling to
+           a section is already fast there, unlike on a long desktop page.
+           Desktop keeps them (see the un-scoped .section-nav rule above). */
+        .section-nav { display: none; }
+        /* This block is a sticky header on a phone, permanently claiming
+           screen height rather than just scrolling past once -- smaller
+           type here buys back real vertical space, not just a cosmetic
+           tweak. */
         .brand h1 { font-size: 15px; }
         .topbar .meta { font-size: 10px; line-height: 1.3; }
-        .section-nav a { font-size: 10.5px; padding: 3px 9px; }
         .tiles { grid-template-columns: 1fr; }
         .hero { padding: 18px 16px; gap: 20px; }
         .hero-value { font-size: 38px; }
