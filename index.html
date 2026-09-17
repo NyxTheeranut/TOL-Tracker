@@ -155,6 +155,17 @@
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       }
       .topbar-right { display: flex; align-items: center; gap: 14px; }
+      /* Jump-links to each section below -- the page has grown to 4+ major
+         sections with no way to skip straight to one, e.g. Sellers, without
+         scrolling past everything above it. flex-basis:100% drops this onto
+         its own row within the topbar's wrapping flex layout. */
+      .section-nav { display: flex; gap: 6px; flex-basis: 100%; overflow-x: auto; }
+      .section-nav a {
+        font-size: 11.5px; padding: 4px 10px; border-radius: 999px; white-space: nowrap;
+        background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.75);
+        border: 1px solid rgba(255, 255, 255, 0.12); text-decoration: none;
+      }
+      .section-nav a:hover { background: rgba(255, 255, 255, 0.16); color: #fff; }
       .topbar .meta {
         font-family: "IBM Plex Mono", monospace; font-size: 11px;
         color: rgba(255, 255, 255, 0.62); text-align: right; line-height: 1.45;
@@ -170,7 +181,10 @@
       .wrap { max-width: 1240px; margin: 0 auto; padding: 26px 28px 72px; }
 
       /* ── section rhythm ─────────────────────────────────────────────────── */
-      .section { margin-top: 40px; }
+      /* Offsets the anchor landing spot below the sticky topbar (~64px tall)
+         so jumping to a section via #sectionNav doesn't tuck its heading
+         underneath it. */
+      .section { margin-top: 40px; scroll-margin-top: 76px; }
       .section:first-of-type { margin-top: 0; }
       .section-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
       .section-head .eyebrow {
@@ -355,6 +369,14 @@
       tbody tr:hover > td { background: var(--panel-2); }
 
       .table-scroll { max-height: 460px; overflow: auto; border: 1px solid var(--line); border-radius: 11px; }
+      /* Signals "there's more to the right" on tables wide enough to need
+         horizontal scroll (several now do, at typical phone widths) -- an
+         inset shadow rather than a gradient overlay so it works regardless
+         of the table-scroll's own vertical scroll state. Toggled by
+         wireScrollShadows() below. */
+      .table-scroll.can-scroll-r { box-shadow: inset -14px 0 10px -10px rgba(0, 0, 0, 0.18); }
+      .table-scroll.can-scroll-l { box-shadow: inset 14px 0 10px -10px rgba(0, 0, 0, 0.18); }
+      .table-scroll.can-scroll-l.can-scroll-r { box-shadow: inset 14px 0 10px -10px rgba(0, 0, 0, 0.18), inset -14px 0 10px -10px rgba(0, 0, 0, 0.18); }
       .table-flat, .table-scroll { -webkit-overflow-scrolling: touch; }
       .table-scroll thead th { position: sticky; top: 0; background: var(--panel); z-index: 2; }
       .table-flat { border: 1px solid var(--line); border-radius: 11px; overflow-x: auto; }
@@ -455,6 +477,11 @@
         position: relative; z-index: 1;
       }
       tr.expandable:hover .tog { background: var(--accent); border-color: var(--accent); color: #fff; }
+      /* A whole row is clickable to drill in, not just its small +/- toggle --
+         without this, that's only discoverable by hovering exactly over the
+         15px icon. z-index:0 keeps it under .rowbar .fill's own bar tint
+         where the two overlap, same paint order as .tr.bd below. */
+      tr.expandable:hover > td { background: var(--panel-2); }
       .tog.on { background: var(--ink); border-color: var(--ink); color: var(--panel); }
       tr.bd > td { background: var(--panel-2); }
       tr.bd:hover > td { background: var(--line-2); }
@@ -642,6 +669,12 @@
         <div class="meta" id="topbarMeta"></div>
         <button class="theme-btn" id="themeBtn" title="Toggle light / dark" aria-label="Toggle light or dark theme">◐</button>
       </div>
+      <nav class="section-nav" aria-label="Jump to section">
+        <a href="#sec-signal">Signal</a>
+        <a href="#sec-breakdown">Breakdown</a>
+        <a href="#sec-villages">Villages</a>
+        <a href="#sec-sellers">Sellers</a>
+      </nav>
     </div>
 
     <div class="wrap">
@@ -681,12 +714,12 @@
         </details>
       </div>
 
-      <div class="section">
+      <div class="section" id="sec-signal">
         <div class="section-head"><span class="eyebrow">Signal</span><h2>What stands out</h2><div class="rule"></div></div>
         <div class="insight-list" id="insights"></div>
       </div>
 
-      <div class="section">
+      <div class="section" id="sec-breakdown">
         <div class="section-head"><span class="eyebrow">Breakdown</span><h2>Where the <span id="lblCameFrom">installs</span> came from</h2><div class="rule"></div></div>
         <div class="grid g-2">
           <div class="card">
@@ -747,7 +780,7 @@
         </div>
       </div>
 
-      <div class="section">
+      <div class="section" id="sec-villages">
         <div class="section-head"><span class="eyebrow">Villages</span><h2>Active FTTH base × new <span id="lblVillagesH2">installs</span></h2><div class="rule"></div></div>
         <div class="tiles" id="ftthTiles"></div>
         <div class="card" style="margin-top: 14px">
@@ -770,12 +803,16 @@
         </div>
       </div>
 
-      <div class="section">
+      <div class="section" id="sec-sellers">
         <div class="section-head"><span class="eyebrow">Sellers</span><h2>Who sold into the cluster</h2><div class="rule"></div></div>
         <div class="card">
           <div class="card-head">
             <div><h3>Dealer territory</h3><div class="card-sub" id="territorySub"></div></div>
             <button class="expbtn" data-export="territory" title="Download the rows as shown — current month, filter and sort">↓ CSV</button>
+          </div>
+          <div class="toolbar" style="margin-top: 10px">
+            <input class="search" id="territorySearch" type="text" placeholder="Filter by territory…" />
+            <span class="count" id="territoryCount"></span>
           </div>
           <div class="table-scroll" style="max-height: 590px; margin-top: 12px"><table class="dtable" id="dealerTerritoryTable"></table></div>
         </div>
@@ -1071,9 +1108,15 @@
            delegated once so repeated regeneration can't pile up listeners. */
         function renderMonthCards() {
           const total = MONTHS.reduce((a, m) => a + m.installs, 0);
+          // Surfaced here (not just the page footer) so "how stale is this"
+          // doesn't require scrolling to the bottom to answer -- matters most
+          // on the hosted copy, which only updates when someone remembers to
+          // run the sync.
+          const genAt = new Date(DATA.meta.generatedAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
           document.getElementById("topbarMeta").innerHTML =
             MONTHS[0].short + "–" + MONTHS[MONTHS.length - 1].short + " " + MONTHS[0].label.split(" ").pop() +
-            "<br/>" + fmt(total) + " " + METRIC();
+            "<br/>" + fmt(total) + " " + METRIC() +
+            "<br/><span style='opacity:0.75'>Updated " + genAt + "</span>";
           const cards = [{ key: null, label: "All months", val: total, sub: MONTHS.length + " months", c: "var(--accent-mark)", p: false }].concat(
             MONTHS.map((m) => ({
               key: m.key, label: m.label.replace(/ \d{4}$/, ""), val: m.installs,
@@ -1190,6 +1233,13 @@
           ms.forEach((m) => m.daily.forEach((d) => pts.push({ m, d })));
           const svg = document.getElementById("sparkChart");
           svg.innerHTML = "";
+          // The chart itself carries no text a screen reader can read -- give
+          // it a one-line spoken summary instead of leaving it silent.
+          const peakPt = pts.reduce((a, p) => (p.d.ga > a.d.ga ? p : a), pts[0]);
+          svg.setAttribute("role", "img");
+          svg.setAttribute("aria-label",
+            "Daily " + METRIC() + " for " + periodLabel() + ": " + fmt(gaT) + " total, peak " +
+            fmt(peakPt.d.ga) + " on " + peakPt.m.short + " " + peakPt.d.day + ".");
           const W = 760, H = 132, pad = 4;
           const max = niceMax(Math.max(...pts.map((p) => p.d.ga), 1) * 1.1);
           const X = (i) => (i / Math.max(pts.length - 1, 1)) * (W - pad * 2) + pad;
@@ -1379,6 +1429,13 @@
 
           const pts = [];
           ms.forEach((m) => m.daily.forEach((d) => pts.push({ m, d })));
+          const peakPt = pts.reduce((a, p) => (p.d.ga > a.d.ga ? p : a), pts[0]);
+          const clickableInView = ms.find((m) => m.key === RAW.buildingsDaily.monthKey);
+          svg.setAttribute("role", "img");
+          svg.setAttribute("aria-label",
+            "Daily " + METRIC() + " bar chart for " + periodLabel() + ", peak " + fmt(peakPt.d.ga) +
+            " on " + peakPt.m.short + " " + peakPt.d.day + "." +
+            (clickableInView ? " Bars for " + clickableInView.label + " are clickable to see that day's buildings." : ""));
           const W = 720, H = 250, padL = 30, padR = 6, padT = 8, padB = 22;
           const iW = W - padL - padR, iH = H - padT - padB;
           const max = niceMax(Math.max(...pts.map((p) => p.d.ga), 1) * 1.08);
@@ -1516,6 +1573,9 @@
             .filter((e) => e[1] > 0)
             .sort((a, b) => b[1] - a[1]);
           const total = rows.reduce((a, e) => a + e[1], 0) || 1;
+          svg.setAttribute("role", "img");
+          svg.setAttribute("aria-label", "Technology breakdown: " +
+            rows.map(([name, v]) => name + " " + fmt(v) + " (" + ((v / total) * 100).toFixed(1) + "%)").join(", ") + ".");
           const W = 460, padL = 8, padR = 8, top = 4, rowH = 46;
           const H = top + rows.length * rowH;
           svg.setAttribute("viewBox", "0 0 " + W + " " + H);
@@ -1810,23 +1870,32 @@
                         { key: "g", label: METRIC_CAP(), num: true, val: (r) => r.g },
                         { key: "r", label: "Revenue", num: true, val: (r) => r.r }];
           const def = { key: "g", dir: -1 };
-          const sorted = sortRows("dealerTerritoryTable", rows, cols, def);
-          EXPORTS.territory = () => ({
-            name: "dealer-territory",
-            header: ["Dealer territory", "Home or import", METRIC_CAP(), "Revenue"],
-            rows: sorted.map((r) => [r.name, r.name === PROVINCE ? "home" : "import", r.g, Math.round(r.r)]),
-          });
           const maxG = Math.max(...rows.map((r) => r.g), 1);
-          let h = thead("dealerTerritoryTable", cols, def) + "<tbody>";
-          sorted.forEach((r) => {
-            const isHome = r.name === PROVINCE;
-            h += "<tr><td class='rowbar'><span class='fill' style='width:" + (r.g / maxG) * 100 + "%;background:" +
-              (isHome ? "var(--accent-soft)" : "var(--line-2)") + "'></span><span class='name'><span class='nm'" +
-              (isHome ? " style='font-weight:600'" : "") + ">" + esc(r.name) + "</span>" + (isHome ? "<span class='pill home'>home</span>" : "") +
-              "</span></td><td class='num lead'>" + fmt(r.g) + "</td><td class='num'>" + money(r.r) + "</td></tr>";
-          });
-          document.getElementById("dealerTerritoryTable").innerHTML = h + "</tbody>";
+
+          function render(list) {
+            const sorted = sortRows("dealerTerritoryTable", list, cols, def);
+            EXPORTS.territory = () => ({
+              name: "dealer-territory",
+              header: ["Dealer territory", "Home or import", METRIC_CAP(), "Revenue"],
+              rows: sorted.map((r) => [r.name, r.name === PROVINCE ? "home" : "import", r.g, Math.round(r.r)]),
+            });
+            let h = thead("dealerTerritoryTable", cols, def) + "<tbody>";
+            sorted.forEach((r) => {
+              const isHome = r.name === PROVINCE;
+              h += "<tr><td class='rowbar'><span class='fill' style='width:" + (r.g / maxG) * 100 + "%;background:" +
+                (isHome ? "var(--accent-soft)" : "var(--line-2)") + "'></span><span class='name'><span class='nm'" +
+                (isHome ? " style='font-weight:600'" : "") + ">" + esc(r.name) + "</span>" + (isHome ? "<span class='pill home'>home</span>" : "") +
+                "</span></td><td class='num lead'>" + fmt(r.g) + "</td><td class='num'>" + money(r.r) + "</td></tr>";
+            });
+            document.getElementById("dealerTerritoryTable").innerHTML = h + "</tbody>";
+          }
+          wireSearch("territorySearch", "territoryCount", () => rows,
+            (r, q) => r.name.toLowerCase().includes(q),
+            render, "dealerTerritoryTable", 3);
         }
+        // wireSearch's run() reads the search input's live value, so simply
+        // re-invoking the whole function on a mode/month switch naturally
+        // keeps whatever's currently typed rather than resetting the filter.
         RERENDER.dealerTerritoryTable = () => renderTerritory();
 
         function renderSubChannel() {
@@ -1856,15 +1925,20 @@
           });
           const maxG = Math.max(...rows.map((r) => r.g), 1);
           let h = thead("subChannelTable", cols, def) + "<tbody>";
+          // Icon alongside color (\u2713/!), same convention as the Signal insight
+          // badges above -- a color-only good/warn/crit read is lost on
+          // colorblind viewers even though the underlying number is right there.
+          const achIcon = { good: "\u2713", warn: "!", crit: "!" };
           sorted.forEach((r) => {
-            let cls = "muted", label = "\u2014";
+            let cls = "muted", label = "\u2014", icon = "";
             if (r.t > 0) {
               cls = r.ach >= 1 ? "good" : r.ach >= 0.7 ? "warn" : "crit";
               label = pct(r.ach);
+              icon = achIcon[cls] + " ";
             }
             h += "<tr><td class='rowbar'><span class='fill' style='width:" + (r.g / maxG) * 100 + "%'></span><span class='name'><span class='nm'>" +
               esc(r.name) + "</span></span></td><td class='num lead'>" + fmt(r.g) + "</td><td class='num'>" + (r.t > 0 ? fmt1(r.t) : "\u2014") +
-              "</td><td class='num'><span class='pill " + cls + "'>" + label + "</span></td><td class='num'>" + money(r.r) + "</td></tr>";
+              "</td><td class='num'><span class='pill " + cls + "'>" + icon + label + "</span></td><td class='num'>" + money(r.r) + "</td></tr>";
           });
           document.getElementById("subChannelTable").innerHTML = h + "</tbody>";
         }
@@ -1910,6 +1984,26 @@
           renderDealers();
         }
         renderAll();
+
+        /* Every .table-scroll div is static in the page HTML (only the
+           <table> inside gets its innerHTML replaced on re-render), so this
+           only needs to run once -- ResizeObserver picks up later width
+           changes on its own (e.g. bldgDailyTable's min-width changing when a
+           day gets pinned, or the window resizing). */
+        (function wireScrollShadows() {
+          const update = (el) => {
+            el.classList.toggle("can-scroll-l", el.scrollLeft > 2);
+            el.classList.toggle("can-scroll-r", el.scrollLeft < el.scrollWidth - el.clientWidth - 2);
+          };
+          document.querySelectorAll(".table-scroll").forEach((el) => {
+            update(el);
+            el.addEventListener("scroll", () => update(el), { passive: true });
+            const ro = new ResizeObserver(() => update(el));
+            ro.observe(el);
+            const table = el.querySelector("table");
+            if (table) ro.observe(table);
+          });
+        })();
       }
 
       /* ===== Google Sign-In =====
