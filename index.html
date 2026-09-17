@@ -133,15 +133,22 @@
       }
 
       /* ── header ─────────────────────────────────────────────────────────── */
+      /* Grid, not flex+space-between -- with 3 children (brand, nav, stats),
+         flex's wrap behavior is fragile: whichever item ends up alone on a
+         wrapped line defaults to that line's START under space-between,
+         which is what dragged the stats block to the left edge on a narrow
+         phone (see the .topbar-right comment below). Grid's three explicit
+         columns give brand/nav/stats fixed, independent alignment that
+         doesn't depend on how many items happen to share a row. */
       .topbar {
         position: sticky; top: 0; z-index: 40;
         background: var(--topbar-bg);
         color: var(--topbar-fg);
         padding: 12px 28px;
-        display: flex; align-items: center; justify-content: space-between;
-        gap: 16px; flex-wrap: wrap;
+        display: grid; grid-template-columns: auto 1fr auto; align-items: center;
+        column-gap: 16px; row-gap: 10px;
       }
-      .brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
+      .brand { grid-column: 1; grid-row: 1; display: flex; align-items: center; gap: 11px; min-width: 0; }
       .bars-icon { display: flex; align-items: flex-end; gap: 2px; height: 17px; }
       .bars-icon i { display: block; width: 3.5px; border-radius: 1px; background: var(--accent-mark); }
       .bars-icon i:nth-child(1) { height: 7px; opacity: 0.5; }
@@ -154,14 +161,22 @@
         font-family: "IBM Plex Mono", monospace; letter-spacing: -0.01em;
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       }
-      .topbar-right { display: flex; align-items: center; gap: 14px; }
+      /* margin-left:auto, not reliance on .topbar's justify-content:space-
+         between -- space-between only pushes this to the right edge while
+         it's sharing a flex line with another item. Once section-nav was
+         added and .topbar-right ends up alone on a wrapped line (typical on
+         a narrow phone), a lone item under space-between sits at the START
+         of its line instead, dragging the whole stats block (and the
+         ragged-left look of its own right-aligned text within it) to the
+         left edge. auto-margin pins it right on ANY line, alone or not. */
+      .topbar-right { grid-column: 3; grid-row: 1; display: flex; align-items: center; gap: 14px; justify-self: end; }
       /* Jump-links to each section below -- the page has grown to 4+ major
          sections with no way to skip straight to one, e.g. Sellers, without
          scrolling past everything above it. A plain flex item (no forced
          flex-basis) so it sits inline between brand and topbar-right when
          there's room, like a normal navbar's center nav -- forcing it onto
          its own full-width row made it read as a mostly-empty bar. */
-      .section-nav { display: flex; gap: 6px; overflow-x: auto; }
+      .section-nav { grid-column: 2; grid-row: 1; justify-self: center; display: flex; gap: 6px; overflow-x: auto; max-width: 100%; }
       .section-nav a {
         font-size: 11.5px; padding: 4px 10px; border-radius: 999px; white-space: nowrap;
         background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.75);
@@ -598,7 +613,17 @@
       }
       @media (max-width: 620px) {
         .wrap { padding: 20px 14px 56px; }
-        .topbar { padding: 10px 14px; }
+        /* Single column -- brand/stats/nav stack into rows in that DOM
+           order instead of trying to share the 3-column desktop layout,
+           which wouldn't have room to fit all three side by side anyway. */
+        .topbar { padding: 10px 14px; grid-template-columns: 1fr; row-gap: 8px; }
+        /* grid-row:auto overrides the desktop rule's explicit row:1 on all
+           three -- otherwise, now that they all also share column 1 here,
+           they'd stack on TOP of each other in the same cell instead of
+           into separate rows. */
+        .brand, .topbar-right, .section-nav { grid-column: 1; grid-row: auto; }
+        .topbar-right { justify-self: end; }
+        .section-nav { justify-self: start; }
         .tiles { grid-template-columns: 1fr; }
         .hero { padding: 18px 16px; gap: 20px; }
         .hero-value { font-size: 38px; }
