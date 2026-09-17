@@ -616,7 +616,7 @@
         /* Single column -- brand/stats/nav stack into rows in that DOM
            order instead of trying to share the 3-column desktop layout,
            which wouldn't have room to fit all three side by side anyway. */
-        .topbar { padding: 10px 14px; grid-template-columns: 1fr; row-gap: 8px; }
+        .topbar { padding: 10px 14px; grid-template-columns: 1fr; row-gap: 6px; }
         /* grid-row:auto overrides the desktop rule's explicit row:1 on all
            three -- otherwise, now that they all also share column 1 here,
            they'd stack on TOP of each other in the same cell instead of
@@ -624,6 +624,13 @@
         .brand, .topbar-right, .section-nav { grid-column: 1; grid-row: auto; }
         .topbar-right { justify-self: end; }
         .section-nav { justify-self: start; }
+        /* This whole block is a sticky header on a phone, permanently
+           claiming screen height rather than just scrolling past once --
+           smaller type here buys back real vertical space, not just a
+           cosmetic tweak. */
+        .brand h1 { font-size: 15px; }
+        .topbar .meta { font-size: 10px; line-height: 1.3; }
+        .section-nav a { font-size: 10.5px; padding: 3px 9px; }
         .tiles { grid-template-columns: 1fr; }
         .hero { padding: 18px 16px; gap: 20px; }
         .hero-value { font-size: 38px; }
@@ -1140,9 +1147,12 @@
           // on the hosted copy, which only updates when someone remembers to
           // run the sync.
           const genAt = new Date(DATA.meta.generatedAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
+          // Two lines, not three -- on a phone this block sits in a sticky
+          // header, so every row of height here is permanent screen real
+          // estate the user never gets back, not just a one-time read.
           document.getElementById("topbarMeta").innerHTML =
             MONTHS[0].short + "–" + MONTHS[MONTHS.length - 1].short + " " + MONTHS[0].label.split(" ").pop() +
-            "<br/>" + fmt(total) + " " + METRIC() +
+            " · " + fmt(total) + " " + METRIC() +
             "<br/><span style='opacity:0.75'>Updated " + genAt + "</span>";
           const cards = [{ key: null, label: "All months", val: total, sub: MONTHS.length + " months", c: "var(--accent-mark)", p: false }].concat(
             MONTHS.map((m) => ({
