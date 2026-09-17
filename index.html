@@ -157,9 +157,11 @@
       .topbar-right { display: flex; align-items: center; gap: 14px; }
       /* Jump-links to each section below -- the page has grown to 4+ major
          sections with no way to skip straight to one, e.g. Sellers, without
-         scrolling past everything above it. flex-basis:100% drops this onto
-         its own row within the topbar's wrapping flex layout. */
-      .section-nav { display: flex; gap: 6px; flex-basis: 100%; overflow-x: auto; }
+         scrolling past everything above it. A plain flex item (no forced
+         flex-basis) so it sits inline between brand and topbar-right when
+         there's room, like a normal navbar's center nav -- forcing it onto
+         its own full-width row made it read as a mostly-empty bar. */
+      .section-nav { display: flex; gap: 6px; overflow-x: auto; }
       .section-nav a {
         font-size: 11.5px; padding: 4px 10px; border-radius: 999px; white-space: nowrap;
         background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.75);
