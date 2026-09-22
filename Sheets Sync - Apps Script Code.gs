@@ -281,26 +281,53 @@ function syncBbData_(tabs) {
   // One-time cleanup: an earlier version of this backend stored everything
   // as one chunked JSON blob in a "Data" tab. Remove it so the Sheet doesn't
   // end up with both that and the normalized tabs below -- harmless no-op
-  // once it's gone.
+  // once it's gone (and on every later chunk, once it's already gone).
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var stale = ss.getSheetByName("Data");
   if (stale) ss.deleteSheet(stale);
 
+  // Writes whatever tabs are IN this call, not all of TAB_NAMES -- the
+  // client sends the full set across several smaller requests (one big
+  // ~3MB POST came back as a bare Google error page, rejected before
+  // doPost even ran, rather than a JSON error from our own code), so any
+  // single call only ever carries a subset. Still validated against
+  // TAB_NAMES so a typo'd tab name fails loudly instead of silently
+  // writing a stray sheet.
+  var names = Object.keys(tabs);
   var totalRows = 0;
-  for (var i = 0; i < TAB_NAMES.length; i++) {
-    var name = TAB_NAMES[i];
+  for (var i = 0; i < names.length; i++) {
+    var name = names[i];
+    if (TAB_NAMES.indexOf(name) === -1) throw new Error("unknown tab in payload: " + name);
     var t = tabs[name];
-    if (!t) throw new Error("missing tab in payload: " + name);
-    writeTab_(name, t.header, t.rows);
+    writeTab_(name, t.header, t.rows, !!t.append);
     totalRows += t.rows.length;
   }
-  return { tabs: TAB_NAMES.length, rows: totalRows };
+  return { tabs: names.length, rows: totalRows };
 }
 
-function writeTab_(name, header, rows) {
+// append=true adds `rows` after whatever's already in the sheet instead of
+// replacing it -- a tab too big for one request (BuildingsBreakdown, ~1.7MB
+// already) arrives as several syncBbData_ calls in sequence; every call
+// after the first for that tab must not re-clear it, or only the LAST
+// piece would survive. See chunk_tabs() in update_bb_sheet.py, which is the
+// only thing that ever sets append:true.
+function writeTab_(name, header, rows, append) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(name);
   if (!sheet) sheet = ss.insertSheet(name);
+
+  if (append) {
+    if (!rows.length) return;
+    var startRow = sheet.getLastRow() + 1;
+    var appendRange = sheet.getRange(startRow, 1, rows.length, header.length);
+    header.forEach(function (colName, idx) {
+      var fmt = TEXT_COLUMNS.indexOf(colName) !== -1 ? "@" : "0.####";
+      sheet.getRange(startRow, idx + 1, rows.length, 1).setNumberFormat(fmt);
+    });
+    appendRange.setValues(rows);
+    return;
+  }
+
   sheet.clearContents();
   // clearContents() only wipes VALUES, not per-cell formatting -- if the
   // schema's column order ever changes (as it did when "label" was removed

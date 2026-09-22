@@ -127,8 +127,55 @@ def main():
     print(f"Upload size: {len(payload_preview) / 1e6:.2f} MB")
 
     print("Uploading to Google Sheet...")
-    result = post(sync_secret, "syncBbData", tabs=tabs)
-    print(f"Done -- {result.get('rows')} rows synced across {result.get('tabs')} tabs.")
+    total_tabs = 0
+    total_rows = 0
+    for i, chunk in enumerate(chunk_tabs(tabs), 1):
+        chunk_mb = len(json.dumps(chunk, ensure_ascii=False)) / 1e6
+        print(f"  chunk {i}: {list(chunk.keys())} ({chunk_mb:.2f} MB)")
+        result = post(sync_secret, "syncBbData", tabs=chunk)
+        total_tabs += result.get("tabs", 0)
+        total_rows += result.get("rows", 0)
+    print(f"Done -- {total_rows} rows synced across {total_tabs} tabs.")
+
+
+def chunk_tabs(tabs, max_bytes=900_000):
+    """Splits {tab_name: {header, rows}} into several smaller dicts, each
+    under roughly max_bytes of JSON, instead of one big payload. A single
+    ~3MB POST to the Apps Script Web App comes back as a bare Google error
+    page (rejected before doPost even runs) rather than a JSON error from
+    our own code -- whatever Google's actual limit is, staying well under it
+    avoids the question entirely.
+
+    Greedy bin-packing by whole tab where that fits (most tabs are small);
+    a tab bigger than max_bytes on its own (BuildingsBreakdown runs ~1.7MB
+    already, and only grows with more months) gets its OWN rows split
+    across several requests instead, each marked "append" after the first
+    so syncBbData_ knows not to re-clear the sheet and lose the earlier
+    pieces."""
+    chunk, chunk_size = {}, 0
+    for name, t in tabs.items():
+        header, rows = t["header"], t["rows"]
+        t_size = len(json.dumps(t, ensure_ascii=False))
+        if t_size <= max_bytes:
+            if chunk and chunk_size + t_size > max_bytes:
+                yield chunk
+                chunk, chunk_size = {}, 0
+            chunk[name] = t
+            chunk_size += t_size
+            continue
+
+        if chunk:
+            yield chunk
+            chunk, chunk_size = {}, 0
+        avg_row_size = t_size / max(len(rows), 1)
+        rows_per_piece = max(int(max_bytes / avg_row_size), 1)
+        for i in range(0, len(rows), rows_per_piece):
+            piece = {"header": header, "rows": rows[i:i + rows_per_piece]}
+            if i > 0:
+                piece["append"] = True
+            yield {name: piece}
+    if chunk:
+        yield chunk
 
 
 if __name__ == "__main__":
