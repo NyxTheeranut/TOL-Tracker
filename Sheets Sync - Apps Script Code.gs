@@ -546,11 +546,21 @@ function reconstructPayload_(tabs) {
           district: r.district,
           bid: r.bid || null,
         };
-        if (r.category === "matched") entry.activeFtth = r.activeFtth;
+        if (r.category === "matched") {
+          entry.activeFtth = r.activeFtth;
+          if (r.lat !== "" && r.lng !== "") {
+            entry.lat = r.lat;
+            entry.lng = r.lng;
+          }
+        }
         byKey[key] = entry;
         order.push({ key: key, category: r.category });
       }
       byKey[key].m[r.month] = { g: r.ga, r: r.revenue };
+      if (r.gaImport !== "") {
+        if (!byKey[key].mi) byKey[key].mi = {};
+        byKey[key].mi[r.month] = { g: r.gaImport, r: r.revenueImport };
+      }
     });
 
     var leavesByBuilding = {};

@@ -112,10 +112,14 @@ def _flatten_leaf_breakdown(tree, mode, building, out_rows):
 def _flatten_villages(village_block, mode, out_rows, ftth_rows):
     for category in ("matched", "bbOnly"):
         for r in village_block[category]:
+            mi = r.get("mi") or {}
             for mk, v in r["m"].items():
+                imp = mi.get(mk) or {}
                 out_rows.append([
                     mode, category, r["name"], mk, v["g"], v["r"],
                     r.get("activeFtth", ""), r.get("district", ""), r.get("bid") or "",
+                    imp.get("g", ""), imp.get("r", ""),
+                    r.get("lat", ""), r.get("lng", ""),
                 ])
     for r in village_block["ftthOnly"]:
         ftth_rows.append([mode, r["name"], r["activeFtth"]])
@@ -218,7 +222,8 @@ def flatten(out):
             _flatten_leaf_breakdown(name["breakdown"], "register:" + status, name["name"], leaf_rows)
 
     tabs["Buildings"] = {
-        "header": ["mode", "category", "name", "month", "ga", "revenue", "activeFtth", "district", "bid"],
+        "header": ["mode", "category", "name", "month", "ga", "revenue", "activeFtth", "district", "bid",
+                   "gaImport", "revenueImport", "lat", "lng"],
         "rows": bld_rows,
     }
     tabs["VillagesFtthOnly"] = {"header": ["mode", "name", "activeFtth"], "rows": ftth_rows}
@@ -454,7 +459,7 @@ def reconstruct(tabs):
         by_key = {}
         order = []
         for row in tabs["Buildings"]["rows"]:
-            m, category, name, mk, ga, revenue, active_ftth, district, bid = row
+            m, category, name, mk, ga, revenue, active_ftth, district, bid, ga_imp, revenue_imp, lat, lng = row
             if m != mode:
                 continue
             key = (category, name)
@@ -462,9 +467,13 @@ def reconstruct(tabs):
                 entry = {"name": name, "m": {}, "district": district, "bid": bid or None}
                 if category == "matched":
                     entry["activeFtth"] = active_ftth
+                    if lat != "" and lng != "":
+                        entry["lat"], entry["lng"] = lat, lng
                 by_key[key] = entry
                 order.append(key)
             by_key[key]["m"][mk] = {"g": ga, "r": revenue}
+            if ga_imp != "":
+                by_key[key].setdefault("mi", {})[mk] = {"g": ga_imp, "r": revenue_imp}
         leaves_by_building = defaultdict(list)
         for row in tabs["BuildingsBreakdown"]["rows"]:
             if row[0] != mode:
@@ -618,8 +627,17 @@ def _merge_villages(existing_v, new_v, new_months, final_months):
             "district": n.get("district") or e.get("district") or "(no district)",
             "bid": n.get("bid") or e.get("bid"),
         }
+        merged_mi = _merge_month_map(e.get("mi", {}), n.get("mi", {}), new_months, final_months)
+        if merged_mi:
+            entry["mi"] = merged_mi
         if is_matched:
             entry["activeFtth"] = n.get("activeFtth", e.get("activeFtth", 0))
+            # Coordinates are a static census fact, not month-dependent --
+            # same "either run having it is enough" rule as district/bid.
+            if n.get("lat") is not None:
+                entry["lat"], entry["lng"] = n["lat"], n["lng"]
+            elif e.get("lat") is not None:
+                entry["lat"], entry["lng"] = e["lat"], e["lng"]
 
         # Merge the breakdown trees at the leaf level (channel/special/
         # territory/partner/month), the same month-preference rule as

@@ -11,6 +11,8 @@
       href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
       /* ── tokens ───────────────────────────────────────────────────────────
          Light is the base definition; dark redefines only these same tokens,
@@ -223,6 +225,18 @@
          down, so paired cards never lined up. */
       .grid > .card + .card { margin-top: 0; }
       .card h3 { font-size: 14.5px; font-weight: 600; }
+      /* ── territory map ─────────────────────────────────────────────────── */
+      #territoryMap { height: 520px; border-radius: 11px; z-index: 0; }
+      .map-legend {
+        display: flex; flex-wrap: wrap; gap: 14px; margin-top: 12px;
+        font-size: 12px; color: var(--text-2);
+      }
+      .map-legend span { display: inline-flex; align-items: center; gap: 6px; }
+      .map-legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+      .map-pop { font-family: "Inter", sans-serif; font-size: 12.5px; min-width: 180px; }
+      .map-pop .nm { font-weight: 600; font-size: 13.5px; margin-bottom: 3px; }
+      .map-pop .row { display: flex; justify-content: space-between; gap: 10px; margin-top: 3px; }
+      .map-pop .row .v { font-weight: 600; }
       .card-sub { font-size: 12px; color: var(--text-2); margin-top: 4px; line-height: 1.55; }
       .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
       .grid { display: grid; gap: 14px; }
@@ -710,6 +724,7 @@
         <a href="#sec-breakdown">Breakdown</a>
         <a href="#sec-villages">Villages</a>
         <a href="#sec-sellers">Sellers</a>
+        <a href="#sec-map">Map</a>
       </nav>
     </div>
 
@@ -858,6 +873,22 @@
             <button class="expbtn" data-export="dealers" title="Download the rows as shown — current month, filter and sort">↓ CSV</button>
           </div>
           <div class="table-scroll" style="max-height: 400px; margin-top: 12px"><table class="dtable" id="dealerTable"></table></div>
+        </div>
+      </div>
+
+      <div class="section" id="sec-map">
+        <div class="section-head"><span class="eyebrow">Map</span><h2>Where import leakage is concentrated</h2><div class="rule"></div></div>
+        <div class="card">
+          <div class="card-head">
+            <div><h3>Territory map</h3><div class="card-sub" id="mapSub"></div></div>
+          </div>
+          <div id="territoryMap" style="margin-top: 12px"></div>
+          <div class="map-legend">
+            <span><i style="background:var(--st-good)"></i>Mostly local (&lt;20% import)</span>
+            <span><i style="background:var(--st-warn)"></i>Mixed (20–50% import)</span>
+            <span><i style="background:var(--st-crit)"></i>Mostly import (&gt;50% import)</span>
+            <span style="margin-left:auto">Circle size = install volume</span>
+          </div>
         </div>
       </div>
 
@@ -2005,6 +2036,89 @@
         }
         RERENDER.dealerTable = () => renderDealers();
 
+        /* ── territory map ──────────────────────────────────────────────────
+           Only "matched" buildings (name found in the FTTH census) carry
+           coordinates -- bbOnly buildings have nowhere to plot, so this map
+           is necessarily a subset of what the Buildings table shows, not the
+           full list. Reuses ga()/sm() so it respects the same month-tile and
+           Connect/Register selection as everything else on the page. */
+        let TERRITORY_MAP = null;
+        let mapMarkerLayer = null;
+        function importPct(r) {
+          const g = ga(r);
+          return g > 0 ? sm(r.mi, "g") / g : 0;
+        }
+        function importColor(pct) {
+          return pct >= 0.5 ? "var(--st-crit)" : pct >= 0.2 ? "var(--st-warn)" : "var(--st-good)";
+        }
+        // Sums installs by outside territory across every channel/sub-channel
+        // branch of one building's drill-down tree, so the map popup can name
+        // which dealer territory is actually capturing the import volume.
+        function importByTerritory(r) {
+          const totals = {};
+          (r.breakdown || []).forEach((channelNode) =>
+            (channelNode.children || []).forEach((specialNode) =>
+              (specialNode.children || []).forEach((territoryNode) => {
+                if (territoryNode.name === PROVINCE) return;
+                totals[territoryNode.name] = (totals[territoryNode.name] || 0) + ga(territoryNode);
+              })
+            )
+          );
+          return totals;
+        }
+        function renderMap() {
+          const rows = DATA.villages.matched.filter((r) => r.lat != null && ga(r) > 0);
+          document.getElementById("mapSub").innerHTML =
+            fmt(rows.length) + " buildings with a census location, colored by import share. " +
+            "<span style='color:var(--text-3)'>Buildings without an exact village-name match in the FTTH census can't be plotted.</span>";
+
+          if (!TERRITORY_MAP) {
+            TERRITORY_MAP = L.map("territoryMap", { zoomControl: true, scrollWheelZoom: false });
+            L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+              maxZoom: 19,
+              attribution: "&copy; OpenStreetMap contributors",
+            }).addTo(TERRITORY_MAP);
+            mapMarkerLayer = L.layerGroup().addTo(TERRITORY_MAP);
+            new ResizeObserver(() => TERRITORY_MAP.invalidateSize()).observe(document.getElementById("territoryMap"));
+          }
+          mapMarkerLayer.clearLayers();
+
+          // circleMarker's fillColor needs a real, resolved color -- an
+          // unresolved "var(--x)" string works by luck under SVG rendering but
+          // silently fails under Leaflet's Canvas renderer, so resolve it
+          // explicitly rather than depending on which one's active.
+          const resolveColor = (varExpr) =>
+            getComputedStyle(document.documentElement).getPropertyValue(varExpr.slice(4, -1).trim()).trim();
+
+          const maxG = Math.max(...rows.map((r) => ga(r)), 1);
+          rows.forEach((r) => {
+            const g = ga(r), impPct = importPct(r), col = importColor(impPct);
+            const radius = Math.max(5, Math.sqrt(g / maxG) * 22);
+            const marker = L.circleMarker([r.lat, r.lng], {
+              radius, weight: 1.5, color: "#fff", fillColor: resolveColor(col), fillOpacity: 0.85,
+            });
+            const terr = Object.entries(importByTerritory(r)).sort((a, b) => b[1] - a[1])[0];
+            marker.bindPopup(
+              "<div class='map-pop'><div class='nm'>" + esc(r.name) + "</div>" +
+              "<div class='row'><span>District</span><span class='v'>" + esc(r.district || "—") + "</span></div>" +
+              "<div class='row'><span>" + METRIC_CAP() + "</span><span class='v'>" + fmt(g) + "</span></div>" +
+              "<div class='row'><span>Import</span><span class='v' style='color:" + col + "'>" +
+              fmt(sm(r.mi, "g")) + " (" + pct(impPct) + ")</span></div>" +
+              (terr ? "<div class='row'><span>Top outside territory</span><span class='v'>" + esc(terr[0]) + "</span></div>" : "")
+              + "</div>"
+            );
+            marker.addTo(mapMarkerLayer);
+          });
+
+          if (rows.length) {
+            const bounds = L.latLngBounds(rows.map((r) => [r.lat, r.lng]));
+            TERRITORY_MAP.fitBounds(bounds.pad(0.15));
+          } else {
+            TERRITORY_MAP.setView([13.91, 100.4], 12);
+          }
+        }
+        RERENDER.territoryMap = () => renderMap();
+
         /* ── render everything for the current selection ───────────────────── */
         function renderAll() {
           renderHero();
@@ -2021,6 +2135,7 @@
           renderTerritory();
           renderSubChannel();
           renderDealers();
+          renderMap();
         }
         renderAll();
 
