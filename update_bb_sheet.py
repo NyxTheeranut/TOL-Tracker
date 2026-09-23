@@ -138,13 +138,17 @@ def main():
     print(f"Done -- {total_rows} rows synced across {total_tabs} tabs.")
 
 
-def chunk_tabs(tabs, max_bytes=900_000):
+def chunk_tabs(tabs, max_bytes=400_000):
     """Splits {tab_name: {header, rows}} into several smaller dicts, each
     under roughly max_bytes of JSON, instead of one big payload. A single
     ~3MB POST to the Apps Script Web App comes back as a bare Google error
     page (rejected before doPost even runs) rather than a JSON error from
     our own code -- whatever Google's actual limit is, staying well under it
-    avoids the question entirely.
+    avoids the question entirely. That limit turned out to be closer than
+    it looked: a 900KB chunk worked once, then started failing the moment
+    Buildings picked up 4 more columns and crossed ~0.9MB -- so this cap is
+    set with real headroom below wherever the true ceiling is, not right up
+    against the last size that happened to work.
 
     Greedy bin-packing by whole tab where that fits (most tabs are small);
     a tab bigger than max_bytes on its own (BuildingsBreakdown runs ~1.7MB
