@@ -926,6 +926,7 @@
           <div class="card-head">
             <div><h3>Territory map</h3><div class="card-sub" id="mapSub"></div></div>
           </div>
+          <div class="sortbtns" id="mapMonthFilter" style="margin: 10px 0 2px"></div>
           <div class="map-layout">
             <div id="territoryMap"></div>
             <div class="map-list" id="mapList">
@@ -1419,8 +1420,10 @@
           DATA = mode === "register" ? registerRootFor(REG_STATUS) : RAW;
           applyModeLabels();
           renderMonthCards();
+          renderMapMonthFilter();
           renderNotesSummary();
           renderAll();
+          if (VIEW === "map") renderMap();
         }
         // Rebuilding every table/chart is the heaviest thing this page does --
         // doing it synchronously in the same task as the click would block the
@@ -1651,12 +1654,39 @@
             )
             .join("");
         }
-        document.addEventListener("click", (e) => {
-          const b = e.target.closest(".mcard");
-          if (!b) return;
-          SEL = b.getAttribute("data-key") || null;
+        // Compact mirror of #monthCards for the Map tab -- same MONTHS/SEL,
+        // just pill buttons instead of full stat cards (there's no room for
+        // those above the map, and the map doesn't need the install/target
+        // numbers those cards show, only which month(s) to scope pins to).
+        function renderMapMonthFilter() {
+          const el = document.getElementById("mapMonthFilter");
+          if (!el) return;
+          const items = [{ key: "", label: "All months" }].concat(
+            MONTHS.map((m) => ({ key: m.key, label: m.label.replace(/ \d{4}$/, "") }))
+          );
+          el.innerHTML =
+            "<span class='sortlabel'>Month</span>" +
+            items.map((it) =>
+              "<button type='button' data-key='" + it.key + "' class='" + ((it.key || null) === SEL ? "on" : "") + "'>" +
+              esc(it.label) + "</button>"
+            ).join("");
+        }
+        // Single path for changing SEL from either month picker, so both
+        // stay in sync and the map only redraws the (possibly expensive)
+        // marker set when it's actually the visible tab -- switching to Map
+        // later already calls renderMap() fresh via applyView().
+        function selectMonth(key) {
+          SEL = key || null;
           document.querySelectorAll(".mcard").forEach((o) => o.setAttribute("aria-pressed", (o.getAttribute("data-key") || null) === SEL));
+          renderMapMonthFilter();
           renderAll();
+          if (VIEW === "map") renderMap();
+        }
+        document.addEventListener("click", (e) => {
+          const mc = e.target.closest(".mcard");
+          if (mc) { selectMonth(mc.getAttribute("data-key")); return; }
+          const mb = e.target.closest("#mapMonthFilter button");
+          if (mb) { selectMonth(mb.getAttribute("data-key")); return; }
         });
 
         // The collapsed chip right under the hero -- worth keeping mode-aware even
@@ -1678,6 +1708,7 @@
           const nonKpi = MONTHS.reduce((a, m) => a + (m.nonKpiConnect || 0), 0);
           document.getElementById("topbarSub").textContent = "TrueOnline Broadband · " + PROVINCE;
           renderMonthCards();
+          renderMapMonthFilter();
           renderNotesSummary();
 
           document.getElementById("notesBody").innerHTML =
@@ -2865,7 +2896,7 @@
             "<span style='color:var(--text-3)'>Buildings without an exact village-name match in the FTTH census can't be plotted.</span>";
 
           if (!TERRITORY_MAP) {
-            TERRITORY_MAP = L.map("territoryMap", { zoomControl: true, scrollWheelZoom: true });
+            TERRITORY_MAP = L.map("territoryMap", { zoomControl: true, scrollWheelZoom: true, preferCanvas: true });
             L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
               maxZoom: 19,
               attribution: "&copy; OpenStreetMap contributors",
@@ -2890,9 +2921,19 @@
           mapMarkerLayer.clearLayers();
           mapMarkersByName = {};
 
+          // resolveColor() forces a synchronous style recalc
+          // (getComputedStyle) -- fine once, but calling it fresh for every
+          // one of ~260 buildings interleaved with the DOM inserts below
+          // (one new marker per row) turns into textbook layout thrashing:
+          // read, write, read, write... Only 3 distinct colors ever come out
+          // of importColor(), so resolve each exactly once here and let the
+          // loop just look them up.
+          const colorCache = {};
+          const resolveColorCached = (varExpr) => colorCache[varExpr] || (colorCache[varExpr] = resolveColor(varExpr));
+
           const maxG = Math.max(...rows.map((r) => ga(r)), 1);
           rows.forEach((r) => {
-            const g = ga(r), impG = importAmt(r), impPct = importPct(r), col = resolveColor(importColor(impPct));
+            const g = ga(r), impG = importAmt(r), impPct = importPct(r), col = resolveColorCached(importColor(impPct));
             const size = Math.max(22, Math.min(46, Math.round(20 + Math.sqrt(g / maxG) * 26)));
             const marker = L.marker([r.lat, r.lng], {
               icon: L.divIcon({
