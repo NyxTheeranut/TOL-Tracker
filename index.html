@@ -13,6 +13,8 @@
     />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
     <style>
       /* ── tokens ───────────────────────────────────────────────────────────
          Light is the base definition; dark redefines only these same tokens,
@@ -226,7 +228,23 @@
       .grid > .card + .card { margin-top: 0; }
       .card h3 { font-size: 14.5px; font-weight: 600; }
       /* ── territory map ─────────────────────────────────────────────────── */
-      #territoryMap { height: 520px; border-radius: 11px; z-index: 0; }
+      #mapView { min-height: calc(100vh - 220px); }
+      #mapCard { display: flex; flex-direction: column; height: calc(100vh - 260px); min-height: 480px; }
+      .map-layout { display: flex; gap: 14px; margin-top: 12px; flex: 1; min-height: 0; }
+      #territoryMap { flex: 1; border-radius: 11px; z-index: 0; min-height: 0; }
+      .map-list {
+        width: 300px; flex: none; overflow-y: auto; border: 1px solid var(--line);
+        border-radius: 11px; padding: 4px;
+      }
+      .map-list-empty { padding: 20px 14px; color: var(--text-3); font-size: 12.5px; text-align: center; }
+      .map-list-head {
+        padding: 10px 12px 8px; font-size: 12px; font-weight: 600; color: var(--text-2);
+        border-bottom: 1px solid var(--line); margin-bottom: 4px;
+      }
+      .map-list-row { padding: 9px 12px; border-radius: 8px; cursor: pointer; }
+      .map-list-row:hover { background: var(--panel-2); }
+      .map-list-row .nm { font-weight: 600; font-size: 13px; }
+      .map-list-row .meta { font-size: 11.5px; color: var(--text-2); margin-top: 2px; display: flex; justify-content: space-between; gap: 8px; }
       .map-legend {
         display: flex; flex-wrap: wrap; gap: 14px; margin-top: 12px;
         font-size: 12px; color: var(--text-2);
@@ -237,6 +255,15 @@
       .map-pop .nm { font-weight: 600; font-size: 13.5px; margin-bottom: 3px; }
       .map-pop .row { display: flex; justify-content: space-between; gap: 10px; margin-top: 3px; }
       .map-pop .row .v { font-weight: 600; }
+      /* Leaflet.markercluster's default cluster bubbles come from its own
+         stylesheet with fixed colors -- overridden per-cluster inline via
+         iconCreateFunction instead (colored by the cluster's own average
+         import share), so these just set shape/size, not color. */
+      .cluster-pin {
+        border-radius: 50%; display: flex; align-items: center; justify-content: center;
+        color: #fff; font-weight: 700; font-family: "IBM Plex Mono", monospace;
+        border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+      }
       .card-sub { font-size: 12px; color: var(--text-2); margin-top: 4px; line-height: 1.55; }
       .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
       .grid { display: grid; gap: 14px; }
@@ -647,6 +674,16 @@
            tweak. */
         .brand h1 { font-size: 15px; }
         .topbar .meta { font-size: 10px; line-height: 1.3; }
+        /* Map + list side-by-side needs real width for both to be usable --
+           on a phone they stack instead, map on top (fixed height, since
+           calc(100vh - Npx) tuned for desktop chrome runs too tall once the
+           address bar/toolbar eats into a phone's viewport) and the list
+           below it, full width, scrolling with the page instead of in its
+           own tiny scroll box. */
+        #mapCard { height: auto; }
+        .map-layout { flex-direction: column; }
+        #territoryMap { height: 340px; flex: none; }
+        .map-list { width: auto; max-height: 320px; }
         .tiles { grid-template-columns: 1fr; }
         .hero { padding: 18px 16px; gap: 20px; }
         .hero-value { font-size: 38px; }
@@ -724,11 +761,16 @@
         <a href="#sec-breakdown">Breakdown</a>
         <a href="#sec-villages">Villages</a>
         <a href="#sec-sellers">Sellers</a>
-        <a href="#sec-map">Map</a>
       </nav>
     </div>
 
     <div class="wrap">
+      <div class="top-tabs" id="viewToggle" style="margin-bottom: 16px">
+        <button class="top-tab active" data-view="dashboard"><span class="dot"></span>Dashboard</button>
+        <button class="top-tab" data-view="map"><span class="dot"></span>Map</button>
+      </div>
+
+      <div id="dashboardView">
       <div class="section">
         <div class="top-tabs" id="modeToggle">
           <button class="top-tab active" data-mode="connect" title="Completed connections only (SOURCES = TOL-CONNECT)"><span class="dot"></span>Connect</button>
@@ -876,13 +918,20 @@
         </div>
       </div>
 
-      <div class="section" id="sec-map">
+      </div>
+
+      <div id="mapView" hidden>
         <div class="section-head"><span class="eyebrow">Map</span><h2>Where import leakage is concentrated</h2><div class="rule"></div></div>
-        <div class="card">
+        <div class="card" id="mapCard">
           <div class="card-head">
             <div><h3>Territory map</h3><div class="card-sub" id="mapSub"></div></div>
           </div>
-          <div id="territoryMap" style="margin-top: 12px"></div>
+          <div class="map-layout">
+            <div id="territoryMap"></div>
+            <div class="map-list" id="mapList">
+              <div class="map-list-empty">Click a building or a clustered area for details.</div>
+            </div>
+          </div>
           <div class="map-legend">
             <span><i style="background:var(--st-good)"></i>Mostly local (&lt;20% import)</span>
             <span><i style="background:var(--st-warn)"></i>Mixed (20–50% import)</span>
@@ -897,6 +946,406 @@
 
     <div id="tooltip"></div>
     <script>
+      /* ── raw-tabs reconstruction ─────────────────────────────────────────
+         Ported verbatim from "Sheets Sync - Apps Script Code.gs"'s
+         reconstructPayload_ (and its rowObjects_/labelFromKey_ helpers). The
+         Apps Script backend used to run this itself before responding to a
+         sign-in, which meant Apps Script's slower, quota-metered runtime
+         paid for rebuilding a deeply nested ~5MB structure from 14 tabs on
+         every single viewer's page load. Now the server just does cheap
+         SpreadsheetApp reads and hands back the raw {header, rows} tabs
+         (see myBbData_ in the .gs file); this does the identical
+         reconstruction here instead, in the browser's own fast JS engine.
+         Keep both copies in sync by hand if the schema ever changes --
+         Apps Script can't import this file, so there's no way to share the
+         literal code between them. */
+      var STATUS_ORDER = ["Connect", "Pending", "Cancel", "Un-Complete", "Other"];
+      var MONTH_NAMES_ = [
+        "", "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December",
+      ];
+      function labelFromKey_(key) {
+        var y = String(key).substring(0, 4),
+          m = parseInt(String(key).substring(4, 6), 10);
+        return MONTH_NAMES_[m] + " " + y;
+      }
+      function rowObjects_(tab) {
+        return tab.rows.map(function (row) {
+          var obj = {};
+          tab.header.forEach(function (h, i) {
+            obj[h] = row[i];
+          });
+          return obj;
+        });
+      }
+      function reconstructPayload_(tabs) {
+        var meta = rowObjects_(tabs.Meta)[0];
+        var bdMonthKey = meta.bdMonthKey,
+          bdDays = meta.bdDays,
+          bdElapsedDays = meta.bdElapsedDays,
+          bdPartial = meta.bdPartial;
+        delete meta.bdMonthKey;
+        delete meta.bdDays;
+        delete meta.bdElapsedDays;
+        delete meta.bdPartial;
+
+        var monthsByKey = {};
+        var monthsOrder = [];
+        rowObjects_(tabs.Months).forEach(function (r) {
+          var m = {
+            key: r.key,
+            label: labelFromKey_(r.key),
+            short: r.short,
+            days: r.days,
+            elapsedDays: r.elapsedDays,
+            partial: r.partial,
+            file: r.file,
+            mtime: r.mtime,
+            installs: r.installs,
+            dupes: r.dupes,
+            otherStatus: r.otherStatus,
+            nonKpiConnect: r.nonKpiConnect,
+            totals: { ga: r.ga, revenue: r.revenue, target: r.target },
+            installsReg: r.installsReg,
+            totalsReg: { ga: r.gaReg, revenue: r.revenueReg, target: 0 },
+            daily: [],
+            dailyReg: [],
+            installsRegByStatus: {},
+            totalsRegByStatus: {},
+            dailyRegByStatus: {},
+          };
+          STATUS_ORDER.forEach(function (s) {
+            var key = s.replace("-", "");
+            m.installsRegByStatus[s] = r["reg_" + key];
+            m.totalsRegByStatus[s] = {
+              ga: r["reg_" + key],
+              revenue: r["regRev_" + key],
+              target: 0,
+            };
+            m.dailyRegByStatus[s] = [];
+          });
+          m.registerByStatus = {};
+          STATUS_ORDER.forEach(function (s) {
+            if (m.installsRegByStatus[s]) m.registerByStatus[s] = m.installsRegByStatus[s];
+          });
+          monthsByKey[r.key] = m;
+          monthsOrder.push(r.key);
+        });
+
+        rowObjects_(tabs.Daily).forEach(function (r) {
+          var d = { day: r.day, ga: r.ga, revenue: r.revenue };
+          if (r.mode === "connect") monthsByKey[r.month].daily.push(d);
+          else if (r.mode === "register") monthsByKey[r.month].dailyReg.push(d);
+          else monthsByKey[r.month].dailyRegByStatus[r.mode.split(":")[1]].push(d);
+        });
+        function padDays(entries, days) {
+          var byDay = {};
+          entries.forEach(function (d) {
+            byDay[d.day] = d;
+          });
+          var out = [];
+          for (var d = 1; d <= days; d++) out.push(byDay[d] || { day: d, ga: 0, revenue: 0 });
+          return out;
+        }
+        monthsOrder.forEach(function (mk) {
+          var m = monthsByKey[mk];
+          m.daily = padDays(m.daily, m.days);
+          m.dailyReg = padDays(m.dailyReg, m.days);
+          STATUS_ORDER.forEach(function (s) {
+            m.dailyRegByStatus[s] = padDays(m.dailyRegByStatus[s], m.days);
+          });
+        });
+        var months = monthsOrder.map(function (mk) {
+          return monthsByKey[mk];
+        });
+
+        function rowsToListify(rows, withImport, withTarget) {
+          var byName = {},
+            order = [];
+          rows.forEach(function (r) {
+            if (!(r.name in byName)) {
+              byName[r.name] = { name: r.name, m: {} };
+              order.push(r.name);
+            }
+            if (r.ga) byName[r.name].m[r.month] = { g: r.ga, r: r.revenue };
+            if (withImport && r.gaImport !== "") {
+              if (!byName[r.name].mi) byName[r.name].mi = {};
+              byName[r.name].mi[r.month] = { g: r.gaImport, r: r.revenueImport };
+            }
+            if (withTarget && r.target !== "") {
+              if (!byName[r.name].t) byName[r.name].t = {};
+              byName[r.name].t[r.month] = r.target;
+            }
+          });
+          var result = order.map(function (n) {
+            return byName[n];
+          });
+          result.sort(function (a, b) {
+            var sa = 0, sb = 0;
+            Object.keys(a.m).forEach(function (k) { sa += a.m[k].g; });
+            Object.keys(b.m).forEach(function (k) { sb += b.m[k].g; });
+            return sb - sa;
+          });
+          return result;
+        }
+
+        var DIMS = [
+          ["district", "District", true, false],
+          ["channel", "Channel", true, false],
+          ["subChannel", "SubChannel", true, true],
+          ["dealerTerritory", "DealerTerritory", false, false],
+          ["supervisor", "Supervisor", false, false],
+        ];
+
+        function rowsForMode(tabName, mode, withImport, withTarget) {
+          var rows = rowObjects_(tabs[tabName]).filter(function (r) { return r.mode === mode; });
+          return rowsToListify(rows, withImport, withTarget);
+        }
+
+        function technologyForMode(mode) {
+          var out = {};
+          rowObjects_(tabs.Technology).forEach(function (r) {
+            if (r.mode !== mode) return;
+            if (!out[r.name]) out[r.name] = {};
+            out[r.name][r.month] = r.ga;
+          });
+          return out;
+        }
+
+        function villagesForMode(mode) {
+          var byKey = {}, order = [];
+          rowObjects_(tabs.Buildings).forEach(function (r) {
+            if (r.mode !== mode) return;
+            var key = r.category + "|" + r.name;
+            if (!byKey[key]) {
+              var entry = { name: r.name, m: {}, district: r.district, bid: r.bid || null };
+              if (r.category === "matched") {
+                entry.activeFtth = r.activeFtth;
+                if (r.lat !== "" && r.lng !== "") {
+                  entry.lat = r.lat;
+                  entry.lng = r.lng;
+                }
+              }
+              byKey[key] = entry;
+              order.push({ key: key, category: r.category });
+            }
+            byKey[key].m[r.month] = { g: r.ga, r: r.revenue };
+            if (r.gaImport !== "") {
+              if (!byKey[key].mi) byKey[key].mi = {};
+              byKey[key].mi[r.month] = { g: r.gaImport, r: r.revenueImport };
+            }
+          });
+
+          var leavesByBuilding = {};
+          rowObjects_(tabs.BuildingsBreakdown).forEach(function (r) {
+            if (r.mode !== mode) return;
+            if (!leavesByBuilding[r.building]) leavesByBuilding[r.building] = [];
+            leavesByBuilding[r.building].push(r);
+          });
+
+          var matched = [], bbOnly = [];
+          order.forEach(function (o) {
+            var entry = byKey[o.key];
+            entry.breakdown = rebuildBreakdownTree_(leavesByBuilding[entry.name] || []);
+            (o.category === "matched" ? matched : bbOnly).push(entry);
+          });
+          matched.sort(function (a, b) { return b.activeFtth - a.activeFtth; });
+          bbOnly.sort(function (a, b) {
+            var sa = 0, sb = 0;
+            Object.keys(a.m).forEach(function (k) { sa += a.m[k].g; });
+            Object.keys(b.m).forEach(function (k) { sb += b.m[k].g; });
+            return sb - sa;
+          });
+
+          var ftthOnly = rowObjects_(tabs.VillagesFtthOnly)
+            .filter(function (r) { return r.mode === mode; })
+            .map(function (r) { return { name: r.name, activeFtth: r.activeFtth }; });
+          ftthOnly.sort(function (a, b) { return b.activeFtth - a.activeFtth; });
+
+          return { matched: matched, ftthOnly: ftthOnly, bbOnly: bbOnly };
+        }
+
+        function rebuildBreakdownTree_(leafRows) {
+          var root = {};
+          leafRows.forEach(function (r) {
+            root[r.channel] = root[r.channel] || {};
+            root[r.channel][r.specialChannel] = root[r.channel][r.specialChannel] || {};
+            root[r.channel][r.specialChannel][r.territory] =
+              root[r.channel][r.specialChannel][r.territory] || {};
+            root[r.channel][r.specialChannel][r.territory][r.partner] =
+              root[r.channel][r.specialChannel][r.territory][r.partner] || {};
+            var bucket = root[r.channel][r.specialChannel][r.territory][r.partner];
+            bucket[r.month] = bucket[r.month] || { g: 0, r: 0 };
+            bucket[r.month].g += r.ga;
+            bucket[r.month].r += r.revenue;
+          });
+
+          function rollup(d, depth) {
+            var items = [];
+            Object.keys(d).forEach(function (name) {
+              var val = d[name];
+              if (depth === 3) {
+                var m = {}, any = false;
+                Object.keys(val).forEach(function (mk) {
+                  if (val[mk].g) {
+                    m[mk] = { g: val[mk].g, r: Math.round(val[mk].r * 100) / 100 };
+                    any = true;
+                  }
+                });
+                if (any) items.push({ name: name, m: m });
+              } else {
+                var kids = rollup(val, depth + 1);
+                if (!kids.length) return;
+                var agg = {};
+                kids.forEach(function (k) {
+                  Object.keys(k.m).forEach(function (mk) {
+                    agg[mk] = agg[mk] || { g: 0, r: 0 };
+                    agg[mk].g += k.m[mk].g;
+                    agg[mk].r += k.m[mk].r;
+                  });
+                });
+                var m2 = {};
+                Object.keys(agg).forEach(function (mk) {
+                  m2[mk] = { g: agg[mk].g, r: Math.round(agg[mk].r * 100) / 100 };
+                });
+                items.push({ name: name, m: m2, children: kids });
+              }
+            });
+            items.sort(function (a, b) {
+              var sa = 0, sb = 0;
+              Object.keys(a.m).forEach(function (k) { sa += a.m[k].g; });
+              Object.keys(b.m).forEach(function (k) { sb += b.m[k].g; });
+              return sb - sa;
+            });
+            return items;
+          }
+
+          return rollup(root, 0);
+        }
+
+        function modeBlock(mode, withTargets) {
+          var block = {};
+          DIMS.forEach(function (d) {
+            var key = d[0], tabName = d[1], withImport = d[2], withTarget = d[3];
+            block[key] = rowsForMode(tabName, mode, withImport, withTarget && withTargets);
+          });
+          block.supervisor = block.supervisor.slice(0, 20);
+          block.technology = technologyForMode(mode);
+          block.villages = villagesForMode(mode);
+          return block;
+        }
+
+        var connectBlock = modeBlock("connect", true);
+        var registerBlock = modeBlock("register", false);
+        var presentStatuses = {};
+        rowObjects_(tabs.District).forEach(function (r) {
+          if (r.mode.indexOf("register:") === 0) presentStatuses[r.mode.split(":")[1]] = true;
+        });
+        var byStatus = {};
+        Object.keys(presentStatuses).sort().forEach(function (status) {
+          byStatus[status] = modeBlock("register:" + status, false);
+        });
+        registerBlock.byStatus = byStatus;
+
+        function rebuildBreakdownTreeSimple_(leafRows) {
+          var root = {};
+          leafRows.forEach(function (r) {
+            root[r.channel] = root[r.channel] || {};
+            root[r.channel][r.specialChannel] = root[r.channel][r.specialChannel] || {};
+            root[r.channel][r.specialChannel][r.territory] =
+              root[r.channel][r.specialChannel][r.territory] || {};
+            root[r.channel][r.specialChannel][r.territory][r.partner] =
+              root[r.channel][r.specialChannel][r.territory][r.partner] || {};
+            var bucket = root[r.channel][r.specialChannel][r.territory][r.partner];
+            bucket[r.day] = bucket[r.day] || { g: 0, r: 0 };
+            bucket[r.day].g += r.ga;
+            bucket[r.day].r += r.revenue;
+          });
+
+          function rollup(d, depth) {
+            var items = [];
+            Object.keys(d).forEach(function (name) {
+              var val = d[name];
+              if (depth === 3) {
+                var m = {}, any = false;
+                Object.keys(val).forEach(function (dk) {
+                  if (val[dk].g) {
+                    m[dk] = { g: val[dk].g, r: Math.round(val[dk].r * 100) / 100 };
+                    any = true;
+                  }
+                });
+                if (any) items.push({ name: name, m: m });
+              } else {
+                var kids = rollup(val, depth + 1);
+                if (!kids.length) return;
+                var agg = {};
+                kids.forEach(function (k) {
+                  Object.keys(k.m).forEach(function (dk) {
+                    agg[dk] = agg[dk] || { g: 0, r: 0 };
+                    agg[dk].g += k.m[dk].g;
+                    agg[dk].r += k.m[dk].r;
+                  });
+                });
+                var m2 = {};
+                Object.keys(agg).forEach(function (dk) {
+                  m2[dk] = { g: agg[dk].g, r: Math.round(agg[dk].r * 100) / 100 };
+                });
+                items.push({ name: name, m: m2, children: kids });
+              }
+            });
+            items.sort(function (a, b) {
+              var sa = 0, sb = 0;
+              Object.keys(a.m).forEach(function (k) { sa += a.m[k].g; });
+              Object.keys(b.m).forEach(function (k) { sb += b.m[k].g; });
+              return sb - sa;
+            });
+            return items;
+          }
+
+          return rollup(root, 0);
+        }
+
+        function buildingsDailyFromTabs_() {
+          var byName = {}, order = [];
+          rowObjects_(tabs.BuildingsDaily).forEach(function (r) {
+            if (!byName[r.building]) {
+              byName[r.building] = { name: r.building, m: {}, district: r.district, bid: r.bid || null };
+              order.push(r.building);
+            }
+            byName[r.building].m[r.day] = { g: r.ga, r: r.revenue };
+          });
+          var leavesByBuilding = {};
+          rowObjects_(tabs.BuildingsDailyBreakdown).forEach(function (r) {
+            if (!leavesByBuilding[r.building]) leavesByBuilding[r.building] = [];
+            leavesByBuilding[r.building].push(r);
+          });
+          var rows = order.map(function (name) {
+            var entry = byName[name];
+            entry.breakdown = rebuildBreakdownTreeSimple_(leavesByBuilding[name] || []);
+            return entry;
+          });
+          rows.sort(function (a, b) {
+            var sa = 0, sb = 0;
+            Object.keys(a.m).forEach(function (k) { sa += a.m[k].g; });
+            Object.keys(b.m).forEach(function (k) { sb += b.m[k].g; });
+            return sb - sa;
+          });
+          return {
+            monthKey: bdMonthKey,
+            label: labelFromKey_(bdMonthKey),
+            days: bdDays,
+            elapsedDays: bdElapsedDays,
+            partial: bdPartial,
+            rows: rows,
+          };
+        }
+
+        var out = { meta: meta, months: months, register: registerBlock };
+        Object.keys(connectBlock).forEach(function (k) { out[k] = connectBlock[k]; });
+        out.buildingsDaily = buildingsDailyFromTabs_();
+        return out;
+      }
+
       function initApp(RAW) {
 
         /* ── Connect / Register mode ──────────────────────────────────────────
@@ -2066,6 +2515,42 @@
           );
           return totals;
         }
+
+        // circleMarker/divIcon fills need a real, resolved color -- an
+        // unresolved "var(--x)" string works by luck under SVG rendering but
+        // silently fails under Leaflet's Canvas renderer or in a plain inline
+        // style on a divIcon, so resolve it explicitly everywhere instead of
+        // depending on which rendering path happens to tolerate it.
+        const resolveColor = (varExpr) =>
+          getComputedStyle(document.documentElement).getPropertyValue(varExpr.slice(4, -1).trim()).trim();
+
+        function renderBuildingList(rows, title) {
+          const el = document.getElementById("mapList");
+          if (!rows.length) {
+            el.innerHTML = "<div class='map-list-empty'>No buildings here.</div>";
+            return;
+          }
+          const sorted = rows.slice().sort((a, b) => ga(b) - ga(a));
+          el.innerHTML =
+            "<div class='map-list-head'>" + esc(title) + "</div>" +
+            sorted.map((r) => {
+              const impPct = importPct(r);
+              return "<div class='map-list-row'><div class='nm'>" + esc(r.name) + "</div>" +
+                "<div class='meta'><span>" + esc(r.district || "—") + " · " + fmt(ga(r)) + " " + METRIC() + "</span>" +
+                "<span style='color:" + importColor(impPct) + ";font-weight:600'>" + pct(impPct) + " import</span></div>" +
+                "</div>";
+            }).join("");
+          el.querySelectorAll(".map-list-row").forEach((rowEl, i) => {
+            rowEl.addEventListener("click", () => {
+              const r = sorted[i];
+              TERRITORY_MAP.setView([r.lat, r.lng], 17, { animate: true });
+              const marker = mapMarkersByName[r.name];
+              if (marker) mapMarkerLayer.zoomToShowLayer(marker, () => marker.openPopup());
+            });
+          });
+        }
+
+        let mapMarkersByName = {};
         function renderMap() {
           const rows = DATA.villages.matched.filter((r) => r.lat != null && ga(r) > 0);
           document.getElementById("mapSub").innerHTML =
@@ -2078,36 +2563,56 @@
               maxZoom: 19,
               attribution: "&copy; OpenStreetMap contributors",
             }).addTo(TERRITORY_MAP);
-            mapMarkerLayer = L.layerGroup().addTo(TERRITORY_MAP);
+            // Clustering solves two things at once: overlapping markers in
+            // dense areas becoming unreadable/unclickable, and gives a
+            // natural "concentrated area" to click for a list of everything
+            // in it.
+            mapMarkerLayer = L.markerClusterGroup({
+              iconCreateFunction: function (cluster) {
+                const markers = cluster.getAllChildMarkers();
+                const totalG = markers.reduce((a, m) => a + m._g, 0);
+                const totalImp = markers.reduce((a, m) => a + m._impG, 0);
+                const col = resolveColor(importColor(totalG > 0 ? totalImp / totalG : 0));
+                const size = Math.min(56, 26 + Math.sqrt(markers.length) * 6);
+                return L.divIcon({
+                  html: "<div class='cluster-pin' style='width:" + size + "px;height:" + size + "px;background:" + col + "'>" + markers.length + "</div>",
+                  className: "",
+                  iconSize: L.point(size, size),
+                });
+              },
+            }).addTo(TERRITORY_MAP);
+            mapMarkerLayer.on("clusterclick", (e) => {
+              const clusterRows = e.layer.getAllChildMarkers().map((m) => m.buildingRow);
+              renderBuildingList(clusterRows, fmt(clusterRows.length) + " buildings in this area");
+            });
             new ResizeObserver(() => TERRITORY_MAP.invalidateSize()).observe(document.getElementById("territoryMap"));
           }
           mapMarkerLayer.clearLayers();
-
-          // circleMarker's fillColor needs a real, resolved color -- an
-          // unresolved "var(--x)" string works by luck under SVG rendering but
-          // silently fails under Leaflet's Canvas renderer, so resolve it
-          // explicitly rather than depending on which one's active.
-          const resolveColor = (varExpr) =>
-            getComputedStyle(document.documentElement).getPropertyValue(varExpr.slice(4, -1).trim()).trim();
+          mapMarkersByName = {};
 
           const maxG = Math.max(...rows.map((r) => ga(r)), 1);
           rows.forEach((r) => {
-            const g = ga(r), impPct = importPct(r), col = importColor(impPct);
+            const g = ga(r), impG = sm(r.mi, "g"), impPct = importPct(r), col = importColor(impPct);
             const radius = Math.max(5, Math.sqrt(g / maxG) * 22);
             const marker = L.circleMarker([r.lat, r.lng], {
               radius, weight: 1.5, color: "#fff", fillColor: resolveColor(col), fillOpacity: 0.85,
             });
+            marker.buildingRow = r;
+            marker._g = g;
+            marker._impG = impG;
             const terr = Object.entries(importByTerritory(r)).sort((a, b) => b[1] - a[1])[0];
             marker.bindPopup(
               "<div class='map-pop'><div class='nm'>" + esc(r.name) + "</div>" +
               "<div class='row'><span>District</span><span class='v'>" + esc(r.district || "—") + "</span></div>" +
               "<div class='row'><span>" + METRIC_CAP() + "</span><span class='v'>" + fmt(g) + "</span></div>" +
               "<div class='row'><span>Import</span><span class='v' style='color:" + col + "'>" +
-              fmt(sm(r.mi, "g")) + " (" + pct(impPct) + ")</span></div>" +
+              fmt(impG) + " (" + pct(impPct) + ")</span></div>" +
               (terr ? "<div class='row'><span>Top outside territory</span><span class='v'>" + esc(terr[0]) + "</span></div>" : "")
               + "</div>"
             );
+            marker.on("click", () => renderBuildingList([r], r.name));
             marker.addTo(mapMarkerLayer);
+            mapMarkersByName[r.name] = marker;
           });
 
           if (rows.length) {
@@ -2117,7 +2622,31 @@
             TERRITORY_MAP.setView([13.91, 100.4], 12);
           }
         }
-        RERENDER.territoryMap = () => renderMap();
+        // No RERENDER entry for the map: unlike the sortable tables that
+        // mechanism serves, it's not visible by default, and applyView()
+        // below already calls renderMap() fresh every time the Map tab is
+        // opened -- a MODE/month change made while on the Dashboard tab is
+        // naturally picked up next time the viewer switches to Map.
+
+        /* ── Dashboard / Map view toggle ───────────────────────────────────── */
+        let VIEW = "dashboard";
+        function applyView(view) {
+          VIEW = view;
+          document.getElementById("dashboardView").hidden = view !== "dashboard";
+          document.getElementById("mapView").hidden = view !== "map";
+          document.querySelectorAll("#viewToggle button").forEach((o) => o.classList.toggle("active", o.dataset.view === view));
+          if (view === "map") {
+            // The map was initialized (if at all) while its container was
+            // hidden (0 width/height) if the viewer never switched to this
+            // tab before -- Leaflet needs an explicit nudge once it's
+            // actually visible, or tiles render into the wrong-sized box.
+            renderMap();
+            requestAnimationFrame(() => TERRITORY_MAP && TERRITORY_MAP.invalidateSize());
+          }
+        }
+        document.querySelectorAll("#viewToggle button").forEach((b) =>
+          b.addEventListener("click", () => applyView(b.dataset.view))
+        );
 
         /* ── render everything for the current selection ───────────────────── */
         function renderAll() {
@@ -2135,7 +2664,10 @@
           renderTerritory();
           renderSubChannel();
           renderDealers();
-          renderMap();
+          // renderMap() is deliberately NOT called here -- it's a hidden tab
+          // until the viewer clicks it (see applyView above), so building
+          // 260 markers + initializing Leaflet on every page load would be
+          // pure waste for anyone who never opens the Map tab this session.
         }
         renderAll();
 
@@ -2195,7 +2727,12 @@
           }
           document.getElementById("loginGate").style.display = "none";
           if (!appInitialized) {
-            initApp(data.payload);
+            // The server sends raw tabs, not a reconstructed payload -- see
+            // reconstructPayload_ above and myBbData_'s comment in the .gs
+            // file for why: rebuilding the nested shape is real CPU work,
+            // done here in the browser instead of inside Apps Script on
+            // every sign-in.
+            initApp(reconstructPayload_(data.tabs));
             appInitialized = true;
           }
         } catch (e) {

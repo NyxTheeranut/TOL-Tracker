@@ -258,8 +258,18 @@ function myBbData_(idToken) {
       error: "no_data",
       message: "No data has been synced yet -- run update_bb_sheet.py.",
     };
-  var payload = reconstructPayload_(tabs);
-  return { ok: true, email: email, payload: payload };
+  // Sends the raw tabs, NOT reconstructPayload_(tabs) -- rebuilding the full
+  // nested shape (thousands of rows across 14 tabs, deep object/array
+  // building) is real CPU work, and doing it here means every single
+  // sign-in pays for it inside Apps Script's slower, quota-metered runtime
+  // before the viewer sees anything at all. The browser does the identical
+  // reconstruction (reconstructPayload_ ported verbatim into index.html)
+  // in its own fast JS engine instead -- same output, much faster to a
+  // signed-in viewer since Apps Script only ever does cheap sheet reads now.
+  // getSyncData below still reconstructs server-side -- that path is
+  // update_bb_sheet.py's local sync tool, not a viewer waiting on a page
+  // load, so it was never the slow one.
+  return { ok: true, email: email, tabs: tabs };
 }
 
 function readAllTabs_() {
