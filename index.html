@@ -3009,37 +3009,64 @@
         el.classList.toggle("error", !!isError);
       }
 
-      let appInitialized = false;
-      async function onGoogleSignIn(response) {
-        const idToken = response.credential;
-        document.getElementById("gsiButton").style.display = "none";
-        showLoginStatus('<div class="login-spinner"></div>', false);
+      // A plain fetch() to the Apps Script Web App occasionally hangs or
+      // drops (Apps Script cold starts, its own script.googleusercontent.com
+      // redirect hop, transient Google-infra hiccups) -- almost always
+      // transient, gone on the very next try. Rather than surface "could not
+      // reach the server" to the viewer on the first hiccup, this retries a
+      // few times with backoff (and a per-attempt timeout so a hung request
+      // doesn't just sit there) before actually giving up.
+      async function fetchMyBbData_(idToken) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 20000);
         try {
           const res = await fetch(DEFAULT_SYNC_URL, {
             method: "POST",
             headers: { "Content-Type": "text/plain;charset=utf-8" },
             body: JSON.stringify({ action: "myBbData", idToken }),
+            signal: controller.signal,
           });
-          const data = await res.json();
-          if (!data.ok) {
-            document.getElementById("gsiButton").style.display = "flex";
-            showLoginStatus(data.message || ("Sign-in failed: " + (data.error || "unknown error")), true);
+          return await res.json();
+        } finally {
+          clearTimeout(timer);
+        }
+      }
+
+      let appInitialized = false;
+      async function onGoogleSignIn(response) {
+        const idToken = response.credential;
+        document.getElementById("gsiButton").style.display = "none";
+        showLoginStatus('<div class="login-spinner"></div>', false);
+        const MAX_ATTEMPTS = 3;
+        for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+          try {
+            const data = await fetchMyBbData_(idToken);
+            if (!data.ok) {
+              document.getElementById("gsiButton").style.display = "flex";
+              showLoginStatus(data.message || ("Sign-in failed: " + (data.error || "unknown error")), true);
+              return;
+            }
+            document.getElementById("loginGate").style.display = "none";
+            if (!appInitialized) {
+              // The server sends raw tabs, not a reconstructed payload -- see
+              // reconstructPayload_ above and myBbData_'s comment in the .gs
+              // file for why: rebuilding the nested shape is real CPU work,
+              // done here in the browser instead of inside Apps Script on
+              // every sign-in.
+              initApp(reconstructPayload_(data.tabs));
+              appInitialized = true;
+            }
             return;
+          } catch (e) {
+            console.warn("myBbData fetch failed (attempt " + attempt + "/" + MAX_ATTEMPTS + ")", e);
+            if (attempt < MAX_ATTEMPTS) {
+              showLoginStatus('<div class="login-spinner"></div> Retrying (' + (attempt + 1) + "/" + MAX_ATTEMPTS + ")…", false);
+              await new Promise((r) => setTimeout(r, 1200 * attempt));
+              continue;
+            }
+            document.getElementById("gsiButton").style.display = "flex";
+            showLoginStatus("Could not reach the server after several tries. Check your connection and try again.", true);
           }
-          document.getElementById("loginGate").style.display = "none";
-          if (!appInitialized) {
-            // The server sends raw tabs, not a reconstructed payload -- see
-            // reconstructPayload_ above and myBbData_'s comment in the .gs
-            // file for why: rebuilding the nested shape is real CPU work,
-            // done here in the browser instead of inside Apps Script on
-            // every sign-in.
-            initApp(reconstructPayload_(data.tabs));
-            appInitialized = true;
-          }
-        } catch (e) {
-          document.getElementById("gsiButton").style.display = "flex";
-          showLoginStatus("Could not reach the server. Check your connection and try again.", true);
-          console.warn("myBbData fetch failed", e);
         }
       }
 
