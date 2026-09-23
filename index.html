@@ -13,8 +13,6 @@
     />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
-    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
     <style>
       /* ── tokens ───────────────────────────────────────────────────────────
          Light is the base definition; dark redefines only these same tokens,
@@ -228,8 +226,8 @@
       .grid > .card + .card { margin-top: 0; }
       .card h3 { font-size: 14.5px; font-weight: 600; }
       /* ── territory map ─────────────────────────────────────────────────── */
-      #mapView { min-height: calc(100vh - 220px); }
-      #mapCard { display: flex; flex-direction: column; height: calc(100vh - 260px); min-height: 480px; }
+      #mapView { min-height: calc(100vh - 160px); }
+      #mapCard { display: flex; flex-direction: column; height: calc(100vh - 190px); min-height: 640px; }
       .map-layout { display: flex; gap: 14px; margin-top: 12px; flex: 1; min-height: 0; }
       #territoryMap { flex: 1; border-radius: 11px; z-index: 0; min-height: 0; }
       .map-list {
@@ -255,15 +253,17 @@
       .map-pop .nm { font-weight: 600; font-size: 13.5px; margin-bottom: 3px; }
       .map-pop .row { display: flex; justify-content: space-between; gap: 10px; margin-top: 3px; }
       .map-pop .row .v { font-weight: 600; }
-      /* Leaflet.markercluster's default cluster bubbles come from its own
-         stylesheet with fixed colors -- overridden per-cluster inline via
-         iconCreateFunction instead (colored by the cluster's own average
-         import share), so these just set shape/size, not color. */
-      .cluster-pin {
-        border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      /* Teardrop pin per building (Route Planner's own .pin shape) -- no
+         clustering, so every pin's number is that exact building's own
+         installs, not a merged group average. Color/size are set inline per
+         building (import share / install volume), this just fixes shape. */
+      .building-pin {
+        border-radius: 50% 50% 50% 0; transform: rotate(-45deg); display: flex;
+        align-items: center; justify-content: center;
         color: #fff; font-weight: 700; font-family: "IBM Plex Mono", monospace;
         border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.35);
       }
+      .building-pin span { transform: rotate(45deg); }
       .card-sub { font-size: 12px; color: var(--text-2); margin-top: 4px; line-height: 1.55; }
       .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
       .grid { display: grid; gap: 14px; }
@@ -682,8 +682,8 @@
            own tiny scroll box. */
         #mapCard { height: auto; }
         .map-layout { flex-direction: column; }
-        #territoryMap { height: 340px; flex: none; }
-        .map-list { width: auto; max-height: 320px; }
+        #territoryMap { height: 420px; flex: none; }
+        .map-list { width: auto; max-height: 360px; }
         .tiles { grid-template-columns: 1fr; }
         .hero { padding: 18px 16px; gap: 20px; }
         .hero-value { font-size: 38px; }
@@ -936,7 +936,7 @@
             <span><i style="background:var(--st-good)"></i>Mostly local (&lt;20% import)</span>
             <span><i style="background:var(--st-warn)"></i>Mixed (20–50% import)</span>
             <span><i style="background:var(--st-crit)"></i>Mostly import (&gt;50% import)</span>
-            <span style="margin-left:auto">Circle size = install volume</span>
+            <span style="margin-left:auto">Pin size &amp; number = installs</span>
           </div>
         </div>
       </div>
@@ -2762,6 +2762,12 @@
         function importColor(pct) {
           return pct >= 0.5 ? "var(--st-crit)" : pct >= 0.2 ? "var(--st-warn)" : "var(--st-good)";
         }
+        // Raw import volume, not share -- a building at 100% import but only 1
+        // install matters far less than one at 20% import out of 200, so the
+        // list ranks by this instead of importPct().
+        function importAmt(r) {
+          return sm(r.mi, "g");
+        }
         // Sums installs by outside territory across every channel/sub-channel
         // branch of one building's drill-down tree, so the map popup can name
         // which dealer territory is actually capturing the import volume.
@@ -2778,9 +2784,9 @@
           return totals;
         }
 
-        // circleMarker/divIcon fills need a real, resolved color -- an
-        // unresolved "var(--x)" string works by luck under SVG rendering but
-        // silently fails under Leaflet's Canvas renderer or in a plain inline
+        // divIcon fills need a real, resolved color -- an unresolved
+        // "var(--x)" string works by luck under SVG rendering but silently
+        // fails under Leaflet's Canvas renderer or in a plain inline
         // style on a divIcon, so resolve it explicitly everywhere instead of
         // depending on which rendering path happens to tolerate it.
         const resolveColor = (varExpr) =>
@@ -2798,16 +2804,16 @@
             el.innerHTML = "<div class='map-list-empty'>No buildings here.</div>";
             return;
           }
-          const sorted = rows.slice().sort((a, b) => importPct(b) - importPct(a) || ga(b) - ga(a));
+          const sorted = rows.slice().sort((a, b) => importAmt(b) - importAmt(a) || ga(b) - ga(a));
           el.innerHTML =
             "<div class='map-list-head'>" + esc(title) +
             (isFiltered ? " <button type='button' class='linkbtn' id='mapListClear'>Show all</button>" : "") +
             "</div>" +
             sorted.map((r) => {
-              const impPct = importPct(r);
+              const impPct = importPct(r), impG = importAmt(r);
               return "<div class='map-list-row'><div class='nm'>" + esc(r.name) + "</div>" +
                 "<div class='meta'><span>" + esc(r.district || "—") + " · " + fmt(ga(r)) + " " + METRIC() + "</span>" +
-                "<span style='color:" + importColor(impPct) + ";font-weight:600'>" + pct(impPct) + " import</span></div>" +
+                "<span style='color:" + importColor(impPct) + ";font-weight:600'>" + fmt(impG) + " import (" + pct(impPct) + ")</span></div>" +
                 "</div>";
             }).join("");
           el.querySelectorAll(".map-list-row").forEach((rowEl, i) => {
@@ -2815,7 +2821,7 @@
               const r = sorted[i];
               TERRITORY_MAP.setView([r.lat, r.lng], 17, { animate: true });
               const marker = mapMarkersByName[r.name];
-              if (marker) mapMarkerLayer.zoomToShowLayer(marker, () => marker.openPopup());
+              if (marker) marker.openPopup();
             });
           });
           const clearBtn = document.getElementById("mapListClear");
@@ -2855,11 +2861,11 @@
         function renderMap() {
           const rows = DATA.villages.matched.filter((r) => r.lat != null && ga(r) > 0);
           document.getElementById("mapSub").innerHTML =
-            fmt(rows.length) + " buildings with a census location, colored by import share. " +
+            fmt(rows.length) + " buildings with a census location. Each pin shows that building's installs, colored by import share. " +
             "<span style='color:var(--text-3)'>Buildings without an exact village-name match in the FTTH census can't be plotted.</span>";
 
           if (!TERRITORY_MAP) {
-            TERRITORY_MAP = L.map("territoryMap", { zoomControl: true, scrollWheelZoom: false });
+            TERRITORY_MAP = L.map("territoryMap", { zoomControl: true, scrollWheelZoom: true });
             L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
               maxZoom: 19,
               attribution: "&copy; OpenStreetMap contributors",
@@ -2872,28 +2878,13 @@
             // "this territory," installs are just this month's activity
             // within it.
             TERRITORY_MAP.fitBounds(districtBoundsAll().pad(0.05));
-            // Clustering solves two things at once: overlapping markers in
-            // dense areas becoming unreadable/unclickable, and gives a
-            // natural "concentrated area" to click for a list of everything
-            // in it.
-            mapMarkerLayer = L.markerClusterGroup({
-              iconCreateFunction: function (cluster) {
-                const markers = cluster.getAllChildMarkers();
-                const totalG = markers.reduce((a, m) => a + m._g, 0);
-                const totalImp = markers.reduce((a, m) => a + m._impG, 0);
-                const col = resolveColor(importColor(totalG > 0 ? totalImp / totalG : 0));
-                const size = Math.min(56, 26 + Math.sqrt(markers.length) * 6);
-                return L.divIcon({
-                  html: "<div class='cluster-pin' style='width:" + size + "px;height:" + size + "px;background:" + col + "'>" + markers.length + "</div>",
-                  className: "",
-                  iconSize: L.point(size, size),
-                });
-              },
-            }).addTo(TERRITORY_MAP);
-            mapMarkerLayer.on("clusterclick", (e) => {
-              const clusterRows = e.layer.getAllChildMarkers().map((m) => m.buildingRow);
-              renderBuildingList(clusterRows, fmt(clusterRows.length) + " buildings in this area", true);
-            });
+            // No clustering: every pin is one real building showing its own
+            // exact install count, like Route Planner's individual store
+            // pins (which handle hundreds of markers fine the same way). A
+            // dense "concentrated area" just means pins sitting close
+            // together -- scroll/pinch to zoom in and they separate on
+            // their own.
+            mapMarkerLayer = L.layerGroup().addTo(TERRITORY_MAP);
             new ResizeObserver(() => TERRITORY_MAP.invalidateSize()).observe(document.getElementById("territoryMap"));
           }
           mapMarkerLayer.clearLayers();
@@ -2901,14 +2892,19 @@
 
           const maxG = Math.max(...rows.map((r) => ga(r)), 1);
           rows.forEach((r) => {
-            const g = ga(r), impG = sm(r.mi, "g"), impPct = importPct(r), col = importColor(impPct);
-            const radius = Math.max(5, Math.sqrt(g / maxG) * 22);
-            const marker = L.circleMarker([r.lat, r.lng], {
-              radius, weight: 1.5, color: "#fff", fillColor: resolveColor(col), fillOpacity: 0.85,
+            const g = ga(r), impG = importAmt(r), impPct = importPct(r), col = resolveColor(importColor(impPct));
+            const size = Math.max(22, Math.min(46, Math.round(20 + Math.sqrt(g / maxG) * 26)));
+            const marker = L.marker([r.lat, r.lng], {
+              icon: L.divIcon({
+                html: "<div class='building-pin' style='width:" + size + "px;height:" + size + "px;background:" + col +
+                  "'><span style='font-size:" + Math.max(9, Math.round(size * 0.32)) + "px'>" + fmt(g) + "</span></div>",
+                className: "",
+                iconSize: [size, size],
+                iconAnchor: [size / 2, size],
+                popupAnchor: [0, -size],
+              }),
             });
             marker.buildingRow = r;
-            marker._g = g;
-            marker._impG = impG;
             const terr = Object.entries(importByTerritory(r)).sort((a, b) => b[1] - a[1])[0];
             marker.bindPopup(
               "<div class='map-pop'><div class='nm'>" + esc(r.name) + "</div>" +
