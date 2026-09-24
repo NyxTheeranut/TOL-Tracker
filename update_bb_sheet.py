@@ -80,6 +80,25 @@ def post(sync_secret, action, **fields):
     return result
 
 
+PROGRESS_TOTAL_STEPS = 4
+
+
+def progress(step, label, width=28):
+    filled = int(width * step / PROGRESS_TOTAL_STEPS)
+    bar = "█" * filled + "░" * (width - filled)
+    pct = int(100 * step / PROGRESS_TOTAL_STEPS)
+    print(f"\n[{bar}] {pct:3d}%  Step {step}/{PROGRESS_TOTAL_STEPS}: {label}")
+
+
+def upload_bar(done_bytes, total_bytes, width=28):
+    frac = min(done_bytes / total_bytes, 1) if total_bytes else 1
+    filled = int(width * frac)
+    bar = "█" * filled + "░" * (width - filled)
+    pct = int(100 * frac)
+    print(f"\r  [{bar}] {pct:3d}%  {done_bytes / 1e6:.2f}/{total_bytes / 1e6:.2f} MB uploaded",
+          end="", flush=True)
+
+
 def main():
     if not SYNC_SECRET_FILE.exists():
         raise SystemExit(
@@ -95,6 +114,7 @@ def main():
             "your Apps Script Web App URL -- see this repo's README."
         )
 
+    progress(1, "Aggregating local source files")
     print("Running the same aggregation as aggregate_bb.py...")
     new_out = aggregate_bb.build_output()
     total = sum(m["installs"] for m in new_out["months"])
@@ -102,6 +122,7 @@ def main():
     print(f"  local data covers: {[m['key'] for m in new_out['months']]}   "
           f"{total} installs   {total_reg} registrations")
 
+    progress(2, "Fetching the Sheet's current state")
     print("Fetching the Sheet's current state (to merge into, not overwrite)...")
     existing = post(sync_secret, "getSyncData").get("payload")
     if existing is None:
@@ -117,6 +138,7 @@ def main():
         out = sheet_schema.merge_months(existing, new_out, aggregate_bb.MAX_MONTHS)
         print(f"  merged result covers: {[m['key'] for m in out['months']]}")
 
+    progress(3, "Preparing tabs to upload")
     tabs = sheet_schema.flatten(out)
     total_rows = sum(len(t["rows"]) for t in tabs.values())
     print(f"Flattened into {len(tabs)} tabs, {total_rows} rows total:")
@@ -124,17 +146,23 @@ def main():
         print(f"  {name:<20} {len(t['rows']):>6} rows")
 
     payload_preview = json.dumps(tabs, ensure_ascii=False)
-    print(f"Upload size: {len(payload_preview) / 1e6:.2f} MB")
+    total_bytes = len(payload_preview.encode("utf-8"))
+    print(f"Upload size: {total_bytes / 1e6:.2f} MB")
 
-    print("Uploading to Google Sheet...")
+    progress(4, "Uploading to Google Sheet")
     total_tabs = 0
     total_rows = 0
+    done_bytes = 0
     for i, chunk in enumerate(chunk_tabs(tabs), 1):
-        chunk_mb = len(json.dumps(chunk, ensure_ascii=False)) / 1e6
+        chunk_json = json.dumps(chunk, ensure_ascii=False)
+        chunk_mb = len(chunk_json) / 1e6
         print(f"  chunk {i}: {list(chunk.keys())} ({chunk_mb:.2f} MB)")
         result = post(sync_secret, "syncBbData", tabs=chunk)
         total_tabs += result.get("tabs", 0)
         total_rows += result.get("rows", 0)
+        done_bytes += len(chunk_json.encode("utf-8"))
+        upload_bar(done_bytes, total_bytes)
+    print()
     print(f"Done -- {total_rows} rows synced across {total_tabs} tabs.")
 
 
