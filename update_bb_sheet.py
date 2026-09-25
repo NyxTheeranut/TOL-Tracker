@@ -36,6 +36,7 @@ back. A month can only ever be dropped by that cap once genuinely newer
 months push it off the old end -- never by an incomplete local folder.
 """
 import json
+import socket
 import sys
 import urllib.error
 import urllib.request
@@ -61,12 +62,31 @@ def post(sync_secret, action, **fields):
         headers={"Content-Type": "text/plain;charset=utf-8"},
     )
     try:
-        with urllib.request.urlopen(req, timeout=120) as res:
+        # Apps Script's per-column setNumberFormat() loop in writeTab_ (fixed
+        # to 2 batched getRangeList() calls instead of one per column, but
+        # kept here as a safety margin) could make a single large-tab append
+        # slow enough on a big sheet to brush against a 120s client timeout
+        # even though the write itself would have finished fine given a bit
+        # longer.
+        with urllib.request.urlopen(req, timeout=180) as res:
             body = res.read().decode("utf-8")
     except urllib.error.HTTPError as e:
         raise SystemExit(f"{action} failed: HTTP {e.code}\n{e.read().decode('utf-8', 'replace')[:500]}")
     except urllib.error.URLError as e:
         raise SystemExit(f"{action} failed: {e.reason}")
+    except socket.timeout:
+        # A read timeout only means THIS client gave up waiting -- Apps
+        # Script keeps running server-side regardless, so the write this
+        # request was making may well have completed anyway. Just re-running
+        # the whole command is always safe: every tab's first chunk clears it
+        # before appending, so a fresh run naturally overwrites whatever a
+        # half-finished previous run left behind rather than duplicating it.
+        raise SystemExit(
+            f"{action} timed out waiting for a response (Apps Script may still be "
+            "finishing server-side). Safe to just run this command again -- every "
+            "tab gets cleared before its data is rewritten, so a retry can't leave "
+            "duplicate rows behind."
+        )
     try:
         result = json.loads(body)
     except json.JSONDecodeError:

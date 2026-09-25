@@ -321,6 +321,25 @@ function syncBbData_(tabs) {
 // after the first for that tab must not re-clear it, or only the LAST
 // piece would survive. See chunk_tabs() in update_bb_sheet.py, which is the
 // only thing that ever sets append:true.
+// One setNumberFormat() call per column (13+ for the wider tabs) was 13+
+// separate Sheets-service round-trips for every single chunk written --
+// on a tab already holding thousands of rows from earlier chunks in the
+// same sync, that overhead was very plausibly what pushed a handful of
+// BuildingsBreakdown appends slow enough to hit update_bb_sheet.py's
+// 120s client timeout. Only two distinct formats ever get applied ("@"
+// for TEXT_COLUMNS, "0.####" for everything else), so group the columns
+// by format and set each group in ONE getRangeList() call instead.
+function setColumnFormats_(sheet, startRow, numRows, header) {
+  var textCols = [];
+  var numberCols = [];
+  header.forEach(function (colName, idx) {
+    var a1 = sheet.getRange(startRow, idx + 1, numRows, 1).getA1Notation();
+    (TEXT_COLUMNS.indexOf(colName) !== -1 ? textCols : numberCols).push(a1);
+  });
+  if (textCols.length) sheet.getRangeList(textCols).setNumberFormat("@");
+  if (numberCols.length) sheet.getRangeList(numberCols).setNumberFormat("0.####");
+}
+
 function writeTab_(name, header, rows, append) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(name);
@@ -330,10 +349,7 @@ function writeTab_(name, header, rows, append) {
     if (!rows.length) return;
     var startRow = sheet.getLastRow() + 1;
     var appendRange = sheet.getRange(startRow, 1, rows.length, header.length);
-    header.forEach(function (colName, idx) {
-      var fmt = TEXT_COLUMNS.indexOf(colName) !== -1 ? "@" : "0.####";
-      sheet.getRange(startRow, idx + 1, rows.length, 1).setNumberFormat(fmt);
-    });
+    setColumnFormats_(sheet, startRow, rows.length, header);
     appendRange.setValues(rows);
     return;
   }
@@ -361,10 +377,7 @@ function writeTab_(name, header, rows, append) {
     return;
   }
   var range = sheet.getRange(1, 1, allRows.length, header.length);
-  header.forEach(function (colName, idx) {
-    var fmt = TEXT_COLUMNS.indexOf(colName) !== -1 ? "@" : "0.####";
-    sheet.getRange(1, idx + 1, allRows.length, 1).setNumberFormat(fmt);
-  });
+  setColumnFormats_(sheet, 1, allRows.length, header);
   range.setValues(allRows);
   sheet.setFrozenRows(1);
   sheet.autoResizeColumns(1, header.length);
