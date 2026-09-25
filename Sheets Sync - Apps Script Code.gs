@@ -399,6 +399,29 @@ function rowObjects_(tab) {
 }
 
 function reconstructPayload_(tabs) {
+  // modeBlock() below runs once for "connect", once for "register", and
+  // once more per distinct register status (byStatus) -- 7+ passes isn't
+  // unusual. Each pass used to re-run rowObjects_() (rebuild one object per
+  // row, from scratch) AND a full re-scan of every row just to throw away
+  // the ones that don't match this pass's mode -- for the big tabs
+  // (Buildings, BuildingsBreakdown: tens of thousands of rows combined),
+  // that's O(rows * modes) when it only needs to be O(rows). This buckets
+  // each tab's rows by mode exactly once (memoized per tab for the lifetime
+  // of this one reconstructPayload_ call) so every later mode just does a
+  // cheap lookup instead of another full pass.
+  var modeBucketCache_ = new Map();
+  function modeRows_(tab, mode) {
+    var buckets = modeBucketCache_.get(tab);
+    if (!buckets) {
+      buckets = {};
+      rowObjects_(tab).forEach(function (r) {
+        (buckets[r.mode] = buckets[r.mode] || []).push(r);
+      });
+      modeBucketCache_.set(tab, buckets);
+    }
+    return buckets[mode] || [];
+  }
+
   var meta = rowObjects_(tabs.Meta)[0];
   // bd* columns are BuildingsDaily plumbing, not part of the real `meta`
   // object build_output() produces -- pull them out before `meta` becomes
@@ -539,16 +562,13 @@ function reconstructPayload_(tabs) {
   ];
 
   function rowsForMode(tabName, mode, withImport, withTarget) {
-    var rows = rowObjects_(tabs[tabName]).filter(function (r) {
-      return r.mode === mode;
-    });
+    var rows = modeRows_(tabs[tabName], mode);
     return rowsToListify(rows, withImport, withTarget);
   }
 
   function technologyForMode(mode) {
     var out = {};
-    rowObjects_(tabs.Technology).forEach(function (r) {
-      if (r.mode !== mode) return;
+    modeRows_(tabs.Technology, mode).forEach(function (r) {
       if (!out[r.name]) out[r.name] = {};
       out[r.name][r.month] = r.ga;
     });
@@ -559,8 +579,7 @@ function reconstructPayload_(tabs) {
   function villagesForMode(mode) {
     var byKey = {},
       order = [];
-    rowObjects_(tabs.Buildings).forEach(function (r) {
-      if (r.mode !== mode) return;
+    modeRows_(tabs.Buildings, mode).forEach(function (r) {
       var key = r.category + "|" + r.name;
       if (!byKey[key]) {
         var entry = {
@@ -587,8 +606,7 @@ function reconstructPayload_(tabs) {
     });
 
     var leavesByBuilding = {};
-    rowObjects_(tabs.BuildingsBreakdown).forEach(function (r) {
-      if (r.mode !== mode) return;
+    modeRows_(tabs.BuildingsBreakdown, mode).forEach(function (r) {
       if (!leavesByBuilding[r.building]) leavesByBuilding[r.building] = [];
       leavesByBuilding[r.building].push(r);
     });
@@ -617,10 +635,7 @@ function reconstructPayload_(tabs) {
       return sb - sa;
     });
 
-    var ftthOnly = rowObjects_(tabs.VillagesFtthOnly)
-      .filter(function (r) {
-        return r.mode === mode;
-      })
+    var ftthOnly = modeRows_(tabs.VillagesFtthOnly, mode)
       .map(function (r) {
         return { name: r.name, activeFtth: r.activeFtth };
       });
