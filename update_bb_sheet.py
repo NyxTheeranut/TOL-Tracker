@@ -38,6 +38,7 @@ months push it off the old end -- never by an incomplete local folder.
 import json
 import socket
 import sys
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -177,6 +178,14 @@ def main():
         chunk_json = json.dumps(chunk, ensure_ascii=False)
         chunk_mb = len(chunk_json) / 1e6
         print(f"  chunk {i}: {list(chunk.keys())} ({chunk_mb:.2f} MB)")
+        if i > 1:
+            # A run once got a 404 with a block-page-shaped HTML body (not
+            # any Google Apps Script error we've seen before) partway
+            # through a burst of back-to-back large POSTs, right after a
+            # fresh redeploy -- unconfirmed cause, but a short gap between
+            # chunks is a cheap hedge against it being abuse-rate detection
+            # reacting to the burst, and costs only a few seconds overall.
+            time.sleep(1.5)
         result = post(sync_secret, "syncBbData", tabs=chunk)
         total_tabs += result.get("tabs", 0)
         total_rows += result.get("rows", 0)
