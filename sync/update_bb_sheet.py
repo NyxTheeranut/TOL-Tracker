@@ -44,7 +44,8 @@ import urllib.request
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-DASHBOARD_DIR = HERE.parent
+REPO_DIR = HERE.parent  # this script lives in sync/
+DASHBOARD_DIR = REPO_DIR.parent
 sys.path.insert(0, str(DASHBOARD_DIR / "TOL"))
 import aggregate_bb  # noqa: E402  (path must be set up first)
 import sheet_schema  # noqa: E402

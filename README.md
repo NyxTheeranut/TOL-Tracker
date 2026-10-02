@@ -24,10 +24,24 @@ this page renders every table/chart from that payload, exactly like the
 local "BB Current Month Tracker.html" does from its embedded copy
 ```
 
-`update_bb_sheet.py` is a separate, local-only tool -- it re-runs the same
-aggregation as `TOL/aggregate_bb.py` (importing `build_output()` directly, so
-the two never compute installs/registrations differently) and pushes the
-result into the Sheet. It's never called from the hosted page.
+`sync/update_bb_sheet.py` is a separate, local-only tool -- it re-runs the
+same aggregation as `TOL/aggregate_bb.py` (importing `build_output()`
+directly, so the two never compute installs/registrations differently) and
+pushes the result into the Sheet. It's never called from the hosted page.
+
+## Repo layout
+
+```
+index.html        the whole site -- GitHub Pages serves this from repo root
+manifest.json      Android/iOS "Add to Home Screen" metadata
+icons/             app icons (source + generated apple-touch/192/512 sizes)
+backend/           Sheets Sync - Apps Script Code.gs (paste into Apps Script)
+sync/              local sync tool (update_bb_sheet.py, sheet_schema.py)
+```
+
+`sync/update_bb_sheet.py` reaches outside this repo to the Dashboard folder's
+shared `TOL/aggregate_bb.py` and `Config/bb_sync_secret.txt` -- see the next
+section.
 
 Unlike L2 Discount Map's data (flat rows -- one per splitter), this
 dashboard's aggregated output is one deeply nested JSON object (months,
@@ -68,13 +82,13 @@ string and parses it.
    Route Planner's Sheet -- this project's Apps Script deployment and secret
    are its own, independent set).
 2. **Extensions → Apps Script**, delete the starter code, paste in the full
-   contents of `Sheets Sync - Apps Script Code.gs` from this repo.
+   contents of `backend/Sheets Sync - Apps Script Code.gs` from this repo.
 3. **Project Settings** (gear icon, left sidebar) → **Script Properties** →
    add two:
    - `OAUTH_CLIENT_ID` = the Client ID from step 1.
    - `SYNC_SECRET` = any random string, e.g. from `openssl rand -hex 24` in a
      terminal. Gates the `syncBbData` action (used only by
-     `update_bb_sheet.py`, see step 5) -- without it, anyone who finds the
+     `sync/update_bb_sheet.py`, see step 5) -- without it, anyone who finds the
      deployment URL could overwrite the entire dataset with one request.
 4. **Deploy → New deployment**
    - Type: **Web app**
@@ -89,7 +103,7 @@ string and parses it.
 1. In `index.html`, set `GOOGLE_CLIENT_ID` (near the bottom of the
    `<script>` block) to the Client ID from step 1.
 2. Set `DEFAULT_SYNC_URL` to the Web app URL from step 2.
-3. In `update_bb_sheet.py`, set `SYNC_URL` to that same Web app URL.
+3. In `sync/update_bb_sheet.py`, set `SYNC_URL` to that same Web app URL.
 
 ### 4. Add your team to the Users tab
 
@@ -112,7 +126,7 @@ specifically so it can't be.
 Then run:
 
 ```
-python3 update_bb_sheet.py
+python3 sync/update_bb_sheet.py
 ```
 
 (or double-click `Update TOL Tracker.command` in the Dashboard folder's
@@ -154,7 +168,7 @@ disagree.
   dealers, Connect and Register numbers) -- there's no per-person scoping to
   get wrong, unlike Route Planner's ae/cm/admin roles.
 - `syncBbData` can't go through the sign-in check at all -- it's not a
-  person signing in, it's `update_bb_sheet.py` running on your own machine --
+  person signing in, it's `sync/update_bb_sheet.py` running on your own machine --
   so it's gated by `SYNC_SECRET` instead (see step 2 and step 5 above). This
   deployment's URL is not actually secret; it's embedded directly in the
   public `index.html`, so without this, "Anyone" access would mean anyone on
