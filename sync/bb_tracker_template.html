@@ -1,0 +1,2591 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BB Current Month Tracker — Pak Kret</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+      /* ── tokens ───────────────────────────────────────────────────────────
+         Light is the base definition; dark redefines only these same tokens,
+         under BOTH the OS media query and an explicit [data-theme] stamp. */
+      :root {
+        color-scheme: light;
+        --ink: #121a2b;
+        --ink-2: #47516180;
+        --text-2: #55606f;
+        --text-3: #7b8695;
+        --page: #eef1f5;
+        --panel: #ffffff;
+        --panel-2: #f6f8fa;
+        --line: #e3e8ef;
+        --line-2: #eef1f5;
+
+        --accent: #12897f; /* UI chrome */
+        --accent-mark: #0d8f83; /* data marks — validated C>=0.10 */
+        --accent-soft: #e2f2f0;
+        --accent-ink: #0b6b63;
+
+        /* categorical — reference slots 1-3, validated all-pairs */
+        --s1: #2a78d6;
+        --s2: #eb6834;
+        --s3: #1baf7a;
+        /* status — reserved, always with icon/label */
+        --st-good: #0ca30c;
+        --st-warn: #fab219;
+        --st-serious: #ec835a;
+        --st-crit: #d03b3b;
+        --st-good-soft: #e6f6e6;
+        --st-warn-soft: #fdf3e0;
+        --st-crit-soft: #fbe9e9;
+
+        --grid: #eceff4;
+        --topbar-bg: #121a2b;
+        --topbar-fg: #ffffff;
+        --shadow: 0 1px 2px rgba(18, 26, 43, 0.04), 0 4px 12px rgba(18, 26, 43, 0.04);
+        --radius: 14px;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:where(:not([data-theme="light"])) {
+          color-scheme: dark;
+          --ink: #f2f5f9;
+          --ink-2: #8b95a480;
+          --text-2: #a9b3c1;
+          --text-3: #7d8794;
+          --page: #0e1014;
+          --panel: #16181d;
+          --panel-2: #1c1f26;
+          --line: #272b33;
+          --line-2: #202430;
+
+          --accent: #2ba79c;
+          --accent-mark: #14b8a6;
+          --accent-soft: #14312f;
+          --accent-ink: #6fd3c7;
+
+          --s1: #3987e5;
+          --s2: #d95926;
+          --s3: #199e70;
+          --st-good-soft: #122a14;
+          --st-warn-soft: #2e2410;
+          --st-crit-soft: #2e1616;
+
+          --grid: #232830;
+          --topbar-bg: #05070a;
+          --topbar-fg: #f2f5f9;
+          --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 14px rgba(0, 0, 0, 0.3);
+        }
+      }
+      :root[data-theme="dark"] {
+        color-scheme: dark;
+        --ink: #f2f5f9;
+        --ink-2: #8b95a480;
+        --text-2: #a9b3c1;
+        --text-3: #7d8794;
+        --page: #0e1014;
+        --panel: #16181d;
+        --panel-2: #1c1f26;
+        --line: #272b33;
+        --line-2: #202430;
+        --accent: #2ba79c;
+        --accent-mark: #14b8a6;
+        --accent-soft: #14312f;
+        --accent-ink: #6fd3c7;
+        --s1: #3987e5;
+        --s2: #d95926;
+        --s3: #199e70;
+        --st-good-soft: #122a14;
+        --st-warn-soft: #2e2410;
+        --st-crit-soft: #2e1616;
+        --grid: #232830;
+        --topbar-bg: #05070a;
+        --topbar-fg: #f2f5f9;
+        --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 14px rgba(0, 0, 0, 0.3);
+      }
+
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; }
+      body {
+        background: var(--page);
+        color: var(--ink);
+        font-family: "Inter", system-ui, -apple-system, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      h1, h2, h3 { font-family: "Space Grotesk", system-ui, sans-serif; margin: 0; letter-spacing: -0.015em; }
+      .mono, .num { font-family: "IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+      button { font-family: inherit; cursor: pointer; }
+      :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+      code {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.92em;
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+        padding: 0.5px 4px;
+        border-radius: 4px;
+      }
+
+      /* ── header ─────────────────────────────────────────────────────────── */
+      /* Grid, not flex+space-between -- with 3 children (brand, nav, stats),
+         flex's wrap behavior is fragile: whichever item ends up alone on a
+         wrapped line defaults to that line's START under space-between,
+         which is what dragged the stats block to the left edge on a narrow
+         phone (see the .topbar-right comment below). Grid's three explicit
+         columns give brand/nav/stats fixed, independent alignment that
+         doesn't depend on how many items happen to share a row. */
+      .topbar {
+        position: sticky; top: 0; z-index: 40;
+        background: var(--topbar-bg);
+        color: var(--topbar-fg);
+        padding: 12px 28px;
+        display: grid; grid-template-columns: auto 1fr auto; align-items: center;
+        column-gap: 16px; row-gap: 10px;
+      }
+      .brand { grid-column: 1; grid-row: 1; display: flex; align-items: center; gap: 11px; min-width: 0; }
+      .bars-icon { display: flex; align-items: flex-end; gap: 2px; height: 17px; }
+      .bars-icon i { display: block; width: 3.5px; border-radius: 1px; background: var(--accent-mark); }
+      .bars-icon i:nth-child(1) { height: 7px; opacity: 0.5; }
+      .bars-icon i:nth-child(2) { height: 12px; opacity: 0.75; }
+      .bars-icon i:nth-child(3) { height: 17px; }
+      .brand > div { min-width: 0; }
+      .brand h1 { font-size: 16px; font-weight: 600; color: var(--topbar-fg); }
+      .brand .sub {
+        font-size: 11px; margin-top: 1px; color: rgba(255, 255, 255, 0.5);
+        font-family: "IBM Plex Mono", monospace; letter-spacing: -0.01em;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .topbar-right { grid-column: 3; grid-row: 1; display: flex; align-items: center; gap: 14px; justify-self: end; }
+      /* Jump-links to each section below -- the page has grown to 4+ major
+         sections with no way to skip straight to one, e.g. Sellers, without
+         scrolling past everything above it. A plain flex item (no forced
+         flex-basis) so it sits inline between brand and topbar-right when
+         there's room, like a normal navbar's center nav -- forcing it onto
+         its own full-width row made it read as a mostly-empty bar. */
+      .section-nav { grid-column: 2; grid-row: 1; justify-self: center; display: flex; gap: 6px; overflow-x: auto; max-width: 100%; }
+      .section-nav a {
+        font-size: 11.5px; padding: 4px 10px; border-radius: 999px; white-space: nowrap;
+        background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.75);
+        border: 1px solid rgba(255, 255, 255, 0.12); text-decoration: none;
+      }
+      .section-nav a:hover { background: rgba(255, 255, 255, 0.16); color: #fff; }
+      .topbar .meta {
+        font-family: "IBM Plex Mono", monospace; font-size: 11px;
+        color: rgba(255, 255, 255, 0.62); text-align: right; line-height: 1.45;
+      }
+      .theme-btn {
+        background: rgba(255, 255, 255, 0.09); border: 1px solid rgba(255, 255, 255, 0.16);
+        color: rgba(255, 255, 255, 0.85); border-radius: 8px;
+        width: 30px; height: 30px; font-size: 13px; line-height: 1;
+        display: flex; align-items: center; justify-content: center; flex: none;
+      }
+      .theme-btn:hover { background: rgba(255, 255, 255, 0.16); }
+
+      .wrap { max-width: 1240px; margin: 0 auto; padding: 26px 28px 72px; }
+
+      /* ── section rhythm ─────────────────────────────────────────────────── */
+      /* Offsets the anchor landing spot below the sticky topbar (~64px tall)
+         so jumping to a section via #sectionNav doesn't tuck its heading
+         underneath it. */
+      .section { margin-top: 40px; scroll-margin-top: 76px; }
+      .section:first-of-type { margin-top: 0; }
+      .section-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+      .section-head .eyebrow {
+        font-family: "IBM Plex Mono", monospace; font-size: 10.5px; font-weight: 600;
+        letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-ink);
+        background: var(--accent-soft); padding: 3px 8px; border-radius: 5px; flex: none;
+      }
+      .section-head h2 { font-size: 17px; font-weight: 600; }
+      .section-head .rule { flex: 1; height: 1px; background: var(--line); }
+
+      /* ── cards ──────────────────────────────────────────────────────────── */
+      .card {
+        background: var(--panel); border: 1px solid var(--line);
+        border-radius: var(--radius); padding: 18px 20px; box-shadow: var(--shadow);
+      }
+      .card + .card, .grid + .card, .card + .grid, .grid + .grid { margin-top: 14px; }
+      /* ...but that spacing is for cards STACKED vertically. Inside a grid the
+         cards sit side by side, and the sibling margin pushed the second one 14px
+         down, so paired cards never lined up. */
+      .grid > .card + .card { margin-top: 0; }
+      .card h3 { font-size: 14.5px; font-weight: 600; }
+      /* ── territory map ─────────────────────────────────────────────────── */
+      #mapView { min-height: calc(100vh - 160px); }
+      #mapCard { display: flex; flex-direction: column; height: calc(100vh - 190px); min-height: 640px; }
+      .map-layout { display: flex; gap: 14px; margin-top: 12px; flex: 1; min-height: 0; }
+      #territoryMap { flex: 1; border-radius: 11px; z-index: 0; min-height: 0; }
+      .map-list {
+        width: 300px; flex: none; overflow-y: auto; border: 1px solid var(--line);
+        border-radius: 11px; padding: 4px;
+      }
+      .map-list-empty { padding: 20px 14px; color: var(--text-3); font-size: 12.5px; text-align: center; }
+      .map-list-head {
+        padding: 10px 12px 8px; font-size: 12px; font-weight: 600; color: var(--text-2);
+        border-bottom: 1px solid var(--line); margin-bottom: 4px;
+      }
+      .map-list-row { padding: 9px 12px; border-radius: 8px; cursor: pointer; }
+      .map-list-row:hover { background: var(--panel-2); }
+      .map-list-row .nm { font-weight: 600; font-size: 13px; }
+      .map-list-row .meta { font-size: 11.5px; color: var(--text-2); margin-top: 2px; display: flex; justify-content: space-between; gap: 8px; }
+      .map-legend {
+        display: flex; flex-wrap: wrap; gap: 14px; margin-top: 12px;
+        font-size: 12px; color: var(--text-2);
+      }
+      .map-legend span { display: inline-flex; align-items: center; gap: 6px; }
+      .map-legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+      .map-pop { font-family: "Inter", sans-serif; font-size: 12.5px; min-width: 180px; }
+      .map-pop .nm { font-weight: 600; font-size: 13.5px; margin-bottom: 3px; }
+      .map-pop .row { display: flex; justify-content: space-between; gap: 10px; margin-top: 3px; }
+      .map-pop .row .v { font-weight: 600; }
+      /* Teardrop pin per building (Route Planner's own .pin shape) -- no
+         clustering, so every pin's number is that exact building's own
+         installs, not a merged group average. Color/size are set inline per
+         building (import share / install volume), this just fixes shape. */
+      .building-pin {
+        border-radius: 50% 50% 50% 0; transform: rotate(-45deg); display: flex;
+        align-items: center; justify-content: center;
+        color: #fff; font-weight: 700; font-family: "IBM Plex Mono", monospace;
+        border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+      }
+      .building-pin span { transform: rotate(45deg); }
+      .card-sub { font-size: 12px; color: var(--text-2); margin-top: 4px; line-height: 1.55; }
+      .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+      .grid { display: grid; gap: 14px; }
+      /* Grid and flex children default to min-width:auto, so a wide table inside
+         inflates its card past the viewport instead of scrolling within it. */
+      .grid > *, .hero > *, .card, .section { min-width: 0; }
+      .g-2 { grid-template-columns: 1fr 1fr; }
+      .g-hero { grid-template-columns: 1.55fr 1fr; }
+
+      /* ── hero ───────────────────────────────────────────────────────────── */
+      .hero {
+        background: var(--panel); border: 1px solid var(--line);
+        border-radius: var(--radius); box-shadow: var(--shadow);
+        padding: 22px 24px; display: flex; gap: 30px; align-items: stretch; flex-wrap: wrap;
+      }
+      .hero-figure { flex: none; min-width: 168px; }
+      .hero-label {
+        font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase;
+        color: var(--text-3); font-family: "IBM Plex Mono", monospace;
+      }
+      .hero-value {
+        font-family: "Space Grotesk", sans-serif; font-size: 46px; font-weight: 700;
+        line-height: 1.02; letter-spacing: -0.03em; margin-top: 6px;
+      }
+      .hero-note { font-size: 12.5px; color: var(--text-2); margin-top: 7px; }
+      .hero-sep { width: 1px; background: var(--line); flex: none; }
+      .hero-right { flex: 1; min-width: 260px; display: flex; flex-direction: column; }
+      .hero-right .hero-label { margin-bottom: 8px; }
+      .hero-spark { width: 100%; height: auto; margin-top: auto; }
+
+      .meter { margin-top: 14px; }
+      .meter-track {
+        height: 8px; border-radius: 99px; background: var(--panel-2);
+        border: 1px solid var(--line); overflow: hidden; position: relative;
+      }
+      .meter-fill { height: 100%; border-radius: 99px; }
+      .meter-legend {
+        display: flex; justify-content: space-between; gap: 10px; margin-top: 7px;
+        font-size: 11.5px; color: var(--text-2); font-family: "IBM Plex Mono", monospace;
+        flex-wrap: wrap;
+      }
+      .meter-legend > span:last-child { white-space: nowrap; }
+
+      /* ── stat tiles ─────────────────────────────────────────────────────── */
+      .tiles { display: grid; gap: 12px; grid-template-columns: repeat(4, 1fr); }
+      .tile {
+        background: var(--panel); border: 1px solid var(--line);
+        border-radius: 12px; padding: 14px 16px; box-shadow: var(--shadow);
+      }
+      .tile .label {
+        font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+        color: var(--text-3); font-family: "IBM Plex Mono", monospace;
+      }
+      .tile .value {
+        font-family: "Space Grotesk", sans-serif; font-size: 25px; font-weight: 700;
+        line-height: 1.12; letter-spacing: -0.02em; margin-top: 7px;
+      }
+      .tile .sub { font-size: 11.5px; color: var(--text-2); margin-top: 5px; line-height: 1.45; }
+      .v-good { color: var(--st-good); }
+      .v-warn { color: #a8760c; }
+      :root[data-theme="dark"] .v-warn { color: var(--st-warn); }
+      @media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) .v-warn { color: var(--st-warn); } }
+      .v-crit { color: var(--st-crit); }
+
+      /* ── data notes (collapsed) ─────────────────────────────────────────── */
+      details.notes {
+        background: var(--panel); border: 1px solid var(--line);
+        border-left: 3px solid var(--accent); border-radius: 10px; margin-top: 14px;
+      }
+      details.notes > summary {
+        cursor: pointer; list-style: none; padding: 11px 16px;
+        font-size: 12.5px; font-weight: 500; color: var(--text-2);
+        display: flex; align-items: center; gap: 9px;
+      }
+      details.notes > summary::-webkit-details-marker { display: none; }
+      details.notes > summary::after { content: "▸"; margin-left: auto; color: var(--text-3); font-size: 11px; }
+      details.notes[open] > summary::after { content: "▾"; }
+      details.notes > summary:hover { color: var(--ink); }
+      .notes-tag {
+        font-family: "IBM Plex Mono", monospace; font-size: 9.5px; font-weight: 600;
+        letter-spacing: 0.07em; background: var(--accent-soft); color: var(--accent-ink);
+        padding: 3px 7px; border-radius: 5px;
+      }
+      .notes-body {
+        padding: 2px 16px 16px 16px; font-size: 12.5px; line-height: 1.65; color: var(--text-2);
+        border-top: 1px solid var(--line-2); margin-top: 2px; padding-top: 12px;
+      }
+      .notes-body p { margin: 0 0 10px 0; }
+      .notes-body p:last-child { margin-bottom: 0; }
+      .notes-body strong { color: var(--ink); font-weight: 600; }
+
+      /* ── charts ─────────────────────────────────────────────────────────── */
+      svg.chart { width: 100%; display: block; overflow: visible; }
+      .gridline { stroke: var(--grid); stroke-width: 1; }
+      .axis-label { fill: var(--text-3); font-size: 10px; font-family: "IBM Plex Mono", monospace; }
+      .axis-strong { fill: var(--text-2); font-size: 10.5px; font-family: "IBM Plex Mono", monospace; font-weight: 500; }
+      .mark { cursor: pointer; }
+      .mark:hover { opacity: 0.82; }
+
+      .legend { display: flex; gap: 13px; flex-wrap: wrap; font-size: 11.5px; color: var(--text-2); }
+      .legend .item { display: flex; align-items: center; gap: 6px; }
+      .legend .sw { width: 9px; height: 9px; border-radius: 2.5px; flex: none; }
+
+      #tooltip {
+        position: fixed; pointer-events: none; z-index: 100; opacity: 0;
+        transition: opacity 0.08s ease; max-width: 260px;
+        background: var(--ink); color: var(--page);
+        border-radius: 9px; padding: 9px 11px;
+        font-family: "IBM Plex Mono", monospace; font-size: 11.5px; line-height: 1.55;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+      }
+      :root[data-theme="dark"] #tooltip { background: #2a2f38; color: #f2f5f9; }
+      @media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) #tooltip { background: #2a2f38; color: #f2f5f9; } }
+      #tooltip .t-title { font-family: "Inter", sans-serif; font-weight: 600; margin-bottom: 3px; font-size: 12px; }
+      #tooltip .t-dim { opacity: 0.66; }
+
+      /* ── tables ─────────────────────────────────────────────────────────── */
+      /* table-layout:fixed -- the default "auto" measures every cell's natural
+         content width (including deeply nested drill-down rows) before sizing
+         columns, so one long name anywhere in the table narrows the numeric
+         columns on EVERY row. Fixed layout sizes columns once, from explicit
+         widths below, and clips overflow instead. */
+      table.dtable { width: 100%; min-width: 640px; table-layout: fixed; border-collapse: separate; border-spacing: 0; font-size: 12.5px; }
+      table.dtable th.num, table.dtable td.num { width: 84px; }
+      /* subChannelTable sits in a .grid g-2 card (paired with Technology) --
+         only ~580-600px wide, narrower than the generic 640px floor above,
+         which forced pointless horizontal scroll (the Achieve% column
+         reading as clipped) even though 3 short numeric columns fit
+         comfortably well under 640px on their own. */
+      #subChannelTable { min-width: 420px; }
+      #bldgTable th:nth-child(2), #bldgTable td:nth-child(2) { width: 132px; }
+      /* bldgTable has the most fixed-width columns (District + up to 12 month
+         cols + Total) of any .dtable -- give it a higher floor so the name
+         column keeps breathing room instead of getting squeezed toward 0 on
+         a narrow window; .table-scroll below scrolls horizontally past that. */
+      #bldgTable { min-width: 960px; }
+      /* bldgDailyTable's day-column count varies a lot -- 1 (a single day
+         picked from the Daily chart) up to 30 (month's end) -- so a fixed
+         min-width here would either starve the name column early in the
+         month or leave it absurdly wide later. renderBuildingsDaily() sets
+         min-width inline instead, sized to however many day columns are
+         actually showing right now. Narrower per-day width keeps the total
+         table width sane either way, since these cells only ever hold a
+         small install count. */
+      #bldgDailyTable th:nth-child(2), #bldgDailyTable td:nth-child(2) { width: 132px; }
+      #bldgDailyTable th.num, #bldgDailyTable td.num { width: 46px; }
+      table.dtable th {
+        text-align: left; font-size: 10px; font-weight: 600; letter-spacing: 0.05em;
+        text-transform: uppercase; color: var(--text-3);
+        padding: 9px 12px; border-bottom: 1px solid var(--line);
+        font-family: "IBM Plex Mono", monospace; white-space: nowrap;
+      }
+      table.dtable td { padding: 8px 12px; border-bottom: 1px solid var(--line-2); vertical-align: middle; }
+      table.dtable tbody tr:last-child td { border-bottom: none; }
+      table.dtable td.num, table.dtable th.num {
+        text-align: right; font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+      table.dtable td.num { color: var(--text-2); }
+      table.dtable td.num.lead { color: var(--ink); font-weight: 500; }
+      tbody tr:hover > td { background: var(--panel-2); }
+
+      .table-scroll { max-height: 460px; overflow: auto; border: 1px solid var(--line); border-radius: 11px; }
+      /* Signals "there's more to the right" on tables wide enough to need
+         horizontal scroll (several now do, at typical phone widths) -- an
+         inset shadow rather than a gradient overlay so it works regardless
+         of the table-scroll's own vertical scroll state. Toggled by
+         wireScrollShadows() below. */
+      .table-scroll.can-scroll-r { box-shadow: inset -14px 0 10px -10px rgba(0, 0, 0, 0.18); }
+      .table-scroll.can-scroll-l { box-shadow: inset 14px 0 10px -10px rgba(0, 0, 0, 0.18); }
+      .table-scroll.can-scroll-l.can-scroll-r { box-shadow: inset 14px 0 10px -10px rgba(0, 0, 0, 0.18), inset -14px 0 10px -10px rgba(0, 0, 0, 0.18); }
+      .table-flat, .table-scroll { -webkit-overflow-scrolling: touch; }
+      .table-scroll thead th { position: sticky; top: 0; background: var(--panel); z-index: 2; }
+      .table-flat { border: 1px solid var(--line); border-radius: 11px; overflow-x: auto; }
+
+      .rowbar { position: relative; }
+      .rowbar .fill {
+        position: absolute; left: 0; top: 3px; bottom: 3px;
+        background: var(--accent-soft); border-radius: 5px; z-index: 0;
+      }
+      .rowbar .name {
+        position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 7px;
+        max-width: 100%; flex-wrap: wrap; row-gap: 3px;
+      }
+      .rowbar .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      #bldgTable td.rowbar { min-width: 260px; }
+
+      .pill {
+        display: inline-block; padding: 2px 7px; border-radius: 20px;
+        font-size: 10.5px; font-weight: 600; font-family: "IBM Plex Mono", monospace;
+        white-space: nowrap; flex: none;
+      }
+      .pill.good { background: var(--st-good-soft); color: var(--st-good); }
+      .pill.warn { background: var(--st-warn-soft); color: #a8760c; }
+      :root[data-theme="dark"] .pill.warn { color: var(--st-warn); }
+      @media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) .pill.warn { color: var(--st-warn); } }
+      .pill.crit { background: var(--st-crit-soft); color: var(--st-crit); }
+      .pill.muted { background: var(--panel-2); color: var(--text-3); border: 1px solid var(--line); }
+      .pill.home { background: var(--accent-soft); color: var(--accent-ink); }
+      .pill.rate { background: var(--panel-2); color: var(--text-2); border: 1px solid var(--line); font-weight: 500; }
+      .pill.top { background: #f5c344; color: #5c4400; }
+      :root[data-theme="dark"] .pill.top { background: #a8760c; color: #fff3d6; }
+      @media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) .pill.top { background: #a8760c; color: #fff3d6; } }
+      .pill.dist { font-family: "Inter", sans-serif; font-weight: 600; }
+      .bid {
+        font-family: "IBM Plex Mono", monospace; font-size: 10.5px; color: var(--text-3);
+        white-space: nowrap;
+      }
+
+      /* ── top-level Connect/Register tabs ───────────────────────────────────
+         Ported from the Pak Kret Territory Explorer's .top-tabs so the two
+         dashboards read as one family: bold pill buttons, dark-fill active
+         state, sitting as the first thing in the page rather than tucked into
+         the topbar corner. */
+      .top-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+      .top-tab {
+        background: var(--panel); border: 1px solid var(--line); padding: 11px 22px;
+        border-radius: 12px; font-size: 14px; font-weight: 700; color: var(--text-2);
+        display: flex; align-items: center; gap: 8px; cursor: pointer; font-family: inherit;
+      }
+      .top-tab.active { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+      .top-tab .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--line-2); }
+      .top-tab.active .dot { background: var(--accent-mark); }
+
+      .sortbtns { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; row-gap: 8px; }
+      /* .sortbtns' own display:flex otherwise wins the cascade over the UA
+         [hidden]{display:none} rule (author styles beat UA styles on a tie). */
+      #statusFilter[hidden] { display: none; }
+      .sortlabel { font-size: 11px; color: var(--text-3); margin-right: 2px; }
+      .sortbtns button {
+        border: 1px solid var(--line); background: var(--panel); color: var(--text-2);
+        font-size: 11.5px; padding: 5px 10px; border-radius: 7px; font-family: inherit;
+      }
+      .sortbtns button.on { background: var(--ink); border-color: var(--ink); color: var(--panel); font-weight: 500; }
+
+      /* ── insights ───────────────────────────────────────────────────────── */
+      .insight-list { display: flex; flex-direction: column; gap: 8px; }
+      .insight {
+        display: flex; gap: 11px; align-items: flex-start;
+        font-size: 13px; line-height: 1.6; padding: 12px 14px;
+        border-radius: 10px; background: var(--panel-2); border: 1px solid var(--line-2);
+      }
+      .insight .ic {
+        width: 17px; height: 17px; border-radius: 5px; margin-top: 1px; flex: none;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 10px; font-weight: 700; color: #fff;
+      }
+      .insight b { font-family: "IBM Plex Mono", monospace; font-weight: 600; color: var(--ink); }
+
+      /* ── toolbar ────────────────────────────────────────────────────────── */
+      .toolbar { display: flex; gap: 10px; align-items: center; margin: 12px 0; flex-wrap: wrap; }
+      .search {
+        flex: 1; min-width: 200px; padding: 8px 12px;
+        border: 1px solid var(--line); border-radius: 9px;
+        font-family: inherit; font-size: 12.5px;
+        background: var(--panel-2); color: var(--ink);
+      }
+      .search::placeholder { color: var(--text-3); }
+      .search:focus { outline: none; border-color: var(--accent); background: var(--panel); }
+      .count { font-size: 11.5px; color: var(--text-3); font-family: "IBM Plex Mono", monospace; white-space: nowrap; }
+
+      /* ── expand tree ────────────────────────────────────────────────────── */
+      tr.expandable { cursor: pointer; }
+      .tog {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 15px; height: 15px; border-radius: 4px; flex: none;
+        background: var(--panel-2); border: 1px solid var(--line);
+        color: var(--text-2); font-size: 10px; font-weight: 700; line-height: 1;
+        position: relative; z-index: 1;
+      }
+      tr.expandable:hover .tog { background: var(--accent); border-color: var(--accent); color: #fff; }
+      /* A whole row is clickable to drill in, not just its small +/- toggle --
+         without this, that's only discoverable by hovering exactly over the
+         15px icon. z-index:0 keeps it under .rowbar .fill's own bar tint
+         where the two overlap, same paint order as .tr.bd below. */
+      tr.expandable:hover > td { background: var(--panel-2); }
+      .tog.on { background: var(--ink); border-color: var(--ink); color: var(--panel); }
+      tr.bd > td { background: var(--panel-2); }
+      tr.bd:hover > td { background: var(--line-2); }
+      .bd-cell { display: flex; align-items: center; gap: 7px; position: relative; }
+      .bd-cell .bd-nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .bd-0 .bd-nm { font-weight: 600; color: var(--accent-ink); }
+      .bd-1 .bd-nm { font-weight: 500; color: var(--s1); }
+      .bd-2 .bd-nm { color: var(--text-2); }
+      .bd-3 .bd-nm { color: var(--text-3); }
+      .bd-rail {
+        position: absolute; left: 0; top: -8px; bottom: -8px; width: 1px;
+        background: var(--line); flex: none;
+      }
+
+      footer {
+        margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--line);
+        text-align: center; color: var(--text-3); font-size: 11px;
+        font-family: "IBM Plex Mono", monospace; line-height: 1.7;
+      }
+
+
+      /* ── month cards ────────────────────────────────────────────────────── */
+      .months { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); }
+      .mcard {
+        position: relative; text-align: left; background: var(--panel);
+        border: 1px solid var(--line); border-radius: 12px; padding: 13px 15px 12px;
+        box-shadow: var(--shadow); overflow: hidden; transition: border-color .12s, transform .12s;
+      }
+      .mcard::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px; background: var(--mc); }
+      .mcard:hover { transform: translateY(-1px); border-color: var(--mc); }
+      .mcard .mlabel {
+        font-family: "IBM Plex Mono", monospace; font-size: 10px; font-weight: 600;
+        letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-3);
+      }
+      .mcard .mval {
+        font-family: "Space Grotesk", sans-serif; font-size: 27px; font-weight: 700;
+        line-height: 1.1; letter-spacing: -0.025em; margin-top: 5px; color: var(--ink);
+      }
+      .mcard .msub { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+      .mcard[aria-pressed="true"] {
+        border-color: var(--ink); box-shadow: 0 0 0 1.5px var(--ink), var(--shadow);
+      }
+      .mcard[aria-pressed="true"] .mlabel { color: var(--mc); }
+
+      /* ── district / channel panels ──────────────────────────────────────── */
+      .drow { display: grid; grid-template-columns: minmax(90px, auto) 1fr minmax(44px, auto); gap: 12px; align-items: center; margin-bottom: 9px; }
+      .drow:last-child { margin-bottom: 0; }
+      .dname { font-size: 12.5px; color: var(--text-2); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .dtrack { height: 15px; border-radius: 5px; background: var(--grid); overflow: hidden; display: flex; }
+      .dseg { height: 100%; }
+      .dseg + .dseg { box-shadow: -2px 0 0 var(--panel); }
+      .dval { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; font-weight: 500; color: var(--ink); text-align: right; }
+
+      .crow { display: grid; grid-template-columns: minmax(96px, auto) 1fr minmax(44px, auto); gap: 12px; align-items: center; margin-bottom: 11px; }
+      .crow:last-child { margin-bottom: 0; }
+      .cname { font-size: 12.5px; font-weight: 500; text-align: right; white-space: nowrap; }
+      .ctrack { height: 22px; border-radius: 6px; background: var(--grid); position: relative; }
+      .cfill { height: 100%; border-radius: 6px; display: flex; align-items: center; justify-content: flex-end; padding-right: 7px; min-width: 3px; position: relative; }
+      .cpct { font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 700; color: #fff; white-space: nowrap; }
+      .cpct.out { position: absolute; left: 100%; margin-left: 7px; color: var(--text-2); }
+      .cval { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; color: var(--text-2); text-align: right; }
+
+      /* ── month-over-month movers ────────────────────────────────────────── */
+      /* The movers list holds at most MOVER_MAX rows. Reserve that height always,
+         so switching District (3 rows) to Dealer (8) doesn't resize the card and
+         shove everything below it down the page. */
+      #moverRows { min-height: calc(8 * 19px + 7 * 8px); }
+      .mvrow { display: grid; grid-template-columns: minmax(88px,1.1fr) 1fr 46px 62px; gap: 9px; align-items: center; margin-bottom: 8px; }
+      .mvrow:last-child { margin-bottom: 0; }
+      .mvname { font-size: 12.5px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .mvbar { display: flex; align-items: center; height: 13px; }
+      .mvneg, .mvpos { flex: 1; height: 100%; display: flex; }
+      .mvneg { justify-content: flex-end; border-right: 1px solid var(--line); padding-right: 1px; }
+      .mvpos { padding-left: 1px; }
+      .mvneg span, .mvpos span { display: block; height: 100%; border-radius: 3px; }
+      #moverRows .mv-empty {
+        display: flex; align-items: center; justify-content: center; height: 100%;
+        min-height: inherit; color: var(--text-3); font-size: 12.5px; text-align: center;
+      }
+      .mvval { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; font-weight: 600; text-align: right; }
+      .mvraw { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--text-3); text-align: right; white-space: nowrap; }
+
+      th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+      th.sortable:hover { color: var(--ink); }
+      th.sortable .sarrow { margin-left: 4px; font-size: 8.5px; vertical-align: 1px; }
+      th.sortable.sorted { color: var(--accent); }
+      .expbtn {
+        border: 1px solid var(--line); background: var(--panel); color: var(--text-2);
+        font-size: 11.5px; padding: 5px 10px; border-radius: 7px; font-family: inherit;
+        white-space: nowrap; flex: none;
+      }
+      .expbtn:hover { border-color: var(--accent); color: var(--accent); }
+      .empty-state {
+        text-align: center; padding: 26px 14px !important; color: var(--text-2); font-size: 12.5px;
+      }
+      .linkbtn {
+        border: 0; background: none; color: var(--accent); font-size: 12.5px;
+        text-decoration: underline; padding: 0 2px;
+      }
+      tr.expandable:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+      /* ── responsive ─────────────────────────────────────────────────────
+         Kept LAST in the sheet: these share specificity with the base rules
+         above, so they only win by source order. */
+      @media (max-width: 1000px) {
+        /* minmax(0, 1fr), not bare 1fr -- a plain 1fr track won't shrink
+           below its content's intrinsic width, so two tiles' worth of
+           value/label text could exceed the viewport instead of fitting. */
+        .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .g-2, .g-hero { grid-template-columns: 1fr; }
+        .hero-sep { display: none; }
+      }
+      @media (max-width: 620px) {
+        .wrap { padding: 20px 14px 56px; }
+        /* Single column -- brand/stats stack into 2 rows in that DOM order
+           instead of trying to share the 3-column desktop layout, which
+           wouldn't have room to fit brand+nav+stats side by side anyway. */
+        .topbar { padding: 10px 14px; grid-template-columns: 1fr; row-gap: 6px; }
+        /* grid-row:auto overrides the desktop rule's explicit row:1 --
+           otherwise, now that both also share column 1 here, they'd stack
+           on TOP of each other in the same cell instead of into rows. */
+        .brand, .topbar-right { grid-column: 1; grid-row: auto; }
+        .topbar-right { justify-self: end; }
+        /* The jump-links are a 3rd permanently-pinned row's worth of height
+           on a phone for comparatively little payoff -- touch-scrolling to
+           a section is already fast there, unlike on a long desktop page.
+           Desktop keeps them (see the un-scoped .section-nav rule above). */
+        .section-nav { display: none; }
+        /* This block is a sticky header on a phone, permanently claiming
+           screen height rather than just scrolling past once -- smaller
+           type here buys back real vertical space, not just a cosmetic
+           tweak. */
+        .brand h1 { font-size: 15px; }
+        .topbar .meta { font-size: 10px; line-height: 1.3; }
+        /* Map + list side-by-side needs real width for both to be usable --
+           on a phone they stack instead, map on top (fixed height, since
+           calc(100vh - Npx) tuned for desktop chrome runs too tall once the
+           address bar/toolbar eats into a phone's viewport) and the list
+           below it, full width, scrolling with the page instead of in its
+           own tiny scroll box. */
+        #mapCard { height: auto; }
+        .map-layout { flex-direction: column; }
+        #territoryMap { height: 420px; flex: none; }
+        .map-list { width: auto; max-height: 360px; }
+        .tiles { grid-template-columns: 1fr; }
+        .hero { padding: 18px 16px; gap: 20px; }
+        .hero-value { font-size: 38px; }
+        .hero-right { min-width: 0; }
+        .card { padding: 15px 14px; }
+        .months { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .mcard .mval { font-size: 23px; }
+        #bldgTable td.rowbar { min-width: 180px; }
+        .drow, .crow { grid-template-columns: minmax(64px, auto) 1fr minmax(38px, auto); gap: 8px; }
+        .mvrow { grid-template-columns: minmax(70px, 1fr) 1fr 40px 54px; gap: 7px; }
+        .toolbar { gap: 8px; }
+        .search { min-width: 0; }
+        .section-head h2 { font-size: 15.5px; }
+      }
+      @media (max-width: 620px) {
+        /* Stack the hero rather than squeezing the sparkline beside the figure. */
+        .hero { flex-direction: column; }
+        .hero-figure { min-width: 0; }
+        .hero-sep { display: none; }
+        .hero-spark { min-height: 96px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="topbar">
+      <div class="brand">
+        <div class="bars-icon"><i></i><i></i><i></i></div>
+        <div>
+          <h1>TOL Install Tracker</h1>
+          <div class="sub" id="topbarSub">TrueOnline Broadband</div>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="meta" id="topbarMeta"></div>
+        <button class="theme-btn" id="themeBtn" title="Toggle light / dark" aria-label="Toggle light or dark theme">◐</button>
+      </div>
+      <nav class="section-nav" aria-label="Jump to section">
+        <a href="#sec-signal">Signal</a>
+        <a href="#sec-breakdown">Breakdown</a>
+        <a href="#sec-villages">Villages</a>
+        <a href="#sec-sellers">Sellers</a>
+      </nav>
+    </div>
+
+    <div class="wrap">
+      <div class="top-tabs" id="viewToggle" style="margin-bottom: 16px">
+        <button class="top-tab active" data-view="dashboard"><span class="dot"></span>Dashboard</button>
+        <button class="top-tab" data-view="map"><span class="dot"></span>Map</button>
+      </div>
+
+      <div id="dashboardView">
+      <div class="section">
+        <div class="top-tabs" id="modeToggle">
+          <button class="top-tab active" data-mode="connect" title="Completed connections only (SOURCES = TOL-CONNECT)"><span class="dot"></span>Connect</button>
+          <button class="top-tab" data-mode="register" title="Every order booked, whatever it became -- connected, pending, cancelled or un-complete (SOURCES = TOL-REGISTER)"><span class="dot"></span>Register</button>
+        </div>
+        <div class="months" id="monthCards"></div>
+
+        <div class="sortbtns" id="statusFilter" hidden style="margin-top: 10px">
+          <span class="sortlabel">Status</span>
+        </div>
+
+        <div class="hero" style="margin-top: 14px">
+          <div class="hero-figure">
+            <div class="hero-label" id="heroLabel">Installs</div>
+            <div class="hero-value" id="heroGa"></div>
+            <div class="hero-note" id="heroNote"></div>
+            <div class="meter">
+              <div class="meter-track"><div class="meter-fill" id="heroMeter"></div></div>
+              <div class="meter-legend"><span id="heroMeterL"></span><span id="heroMeterR"></span></div>
+            </div>
+          </div>
+          <div class="hero-sep"></div>
+          <div class="hero-right">
+            <div class="hero-label"><span id="heroSparkLabel">Daily installs</span> · <span id="heroMonth"></span></div>
+            <svg class="chart hero-spark" id="sparkChart" viewBox="0 0 760 132"></svg>
+          </div>
+        </div>
+
+        <div class="tiles" id="tiles" style="margin-top: 14px"></div>
+
+        <details class="notes" id="dataNotes">
+          <summary><span class="notes-tag">DATA NOTES</span> <span id="notesSummary"></span></summary>
+          <div class="notes-body" id="notesBody"></div>
+        </details>
+      </div>
+
+      <div class="section" id="sec-signal">
+        <div class="section-head"><span class="eyebrow">Signal</span><h2>What stands out</h2><div class="rule"></div></div>
+        <div class="insight-list" id="insights"></div>
+      </div>
+
+      <div class="section" id="sec-breakdown">
+        <div class="section-head"><span class="eyebrow">Breakdown</span><h2>Where the <span id="lblCameFrom">installs</span> came from</h2><div class="rule"></div></div>
+        <div class="grid g-2">
+          <div class="card">
+            <div class="card-head">
+              <div><h3>By district</h3><div class="card-sub"><span id="lblDistrictSub">Installs</span> by customer district</div></div>
+              <div class="legend" id="districtLegend"></div>
+            </div>
+            <div id="districtRows" style="margin-top: 14px"></div>
+          </div>
+          <div class="card">
+            <h3>Channel share</h3>
+            <div class="card-sub">Share of <span id="lblChannelSub">installs</span> by channel group</div>
+            <div id="channelRows" style="margin-top: 14px"></div>
+          </div>
+        </div>
+        <div class="grid g-hero">
+          <div class="card">
+            <div class="card-head">
+              <div><h3 id="lblDailyH3">Daily installs</h3><div class="card-sub" id="stackSub"></div></div>
+              <div class="legend" id="stackLegend"></div>
+            </div>
+            <svg class="chart" id="stackChart" viewBox="0 0 720 250" style="margin-top: 14px"></svg>
+          </div>
+          <div class="card">
+            <div class="card-head">
+              <div><h3>Month-over-month</h3><div class="card-sub" id="moversSub"></div></div>
+            </div>
+            <div class="toolbar" style="margin-top:10px">
+              <div class="sortbtns" id="moverDims">
+                <button data-dim="district" class="on">District</button>
+                <button data-dim="channel">Channel</button>
+                <button data-dim="subChannel">Sub-ch</button>
+                <button data-dim="supervisor">Dealer</button>
+              </div>
+              <div class="sortbtns" id="moverOrigin">
+                <span class="sortlabel">Sold by</span>
+                <button data-org="all" class="on" title="Every install, whoever sold it">All</button>
+                <button data-org="local" title="Sold by a dealer assigned to this cluster">Local</button>
+                <button data-org="import" title="Sold by a dealer assigned to another territory">Import</button>
+              </div>
+            </div>
+            <div id="moverRows"></div>
+          </div>
+        </div>
+        <div class="grid g-2">
+          <div class="card">
+            <div class="card-head">
+              <div><h3>Sub-channel</h3><div class="card-sub">Achieve% shown only where an individual target exists</div></div>
+              <button class="expbtn" data-export="subchannel" title="Download the rows as shown — current month, filter and sort">↓ CSV</button>
+            </div>
+            <div class="table-scroll" style="max-height: 400px; margin-top: 12px"><table class="dtable" id="subChannelTable"></table></div>
+          </div>
+          <div class="card">
+            <h3>Technology</h3>
+            <div class="card-sub" id="lblTechSub">Install technology on connected lines</div>
+            <svg class="chart" id="techChart" viewBox="0 0 460 190" style="margin-top: 10px"></svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="section" id="sec-villages">
+        <div class="section-head"><span class="eyebrow">Villages</span><h2>Active FTTH base × new <span id="lblVillagesH2">installs</span></h2><div class="rule"></div></div>
+        <div class="tiles" id="ftthTiles"></div>
+        <div class="card" style="margin-top: 14px">
+          <div class="card-head"><div><h3>Buildings</h3><div class="card-sub" id="bldgSub"></div></div></div>
+          <div class="toolbar">
+            <input class="search" id="bldgSearch" type="text" placeholder="Filter by building or district…" />
+            <span class="count" id="bldgCount"></span>
+            <button class="expbtn" data-export="buildings" title="Download the rows as shown — current month, filter and sort">↓ CSV</button>
+          </div>
+          <div class="table-scroll"><table class="dtable" id="bldgTable"></table></div>
+        </div>
+        <div class="card" style="margin-top: 14px">
+          <div class="card-head"><div><h3>Buildings — per day</h3><div class="card-sub" id="bldgDailySub"></div></div></div>
+          <div class="toolbar">
+            <input class="search" id="bldgDailySearch" type="text" placeholder="Filter by building or district…" />
+            <span class="count" id="bldgDailyCount"></span>
+            <button class="expbtn" data-export="buildingsDaily" title="Download the rows as shown — current month, filter and sort">↓ CSV</button>
+          </div>
+          <div class="table-scroll"><table class="dtable" id="bldgDailyTable"></table></div>
+        </div>
+      </div>
+
+      <div class="section" id="sec-sellers">
+        <div class="section-head"><span class="eyebrow">Sellers</span><h2>Who sold into the cluster</h2><div class="rule"></div></div>
+        <div class="card">
+          <div class="card-head">
+            <div><h3>Dealer territory</h3><div class="card-sub" id="territorySub"></div></div>
+            <button class="expbtn" data-export="territory" title="Download the rows as shown — current month, filter and sort">↓ CSV</button>
+          </div>
+          <div class="toolbar" style="margin-top: 10px">
+            <input class="search" id="territorySearch" type="text" placeholder="Filter by territory…" />
+            <span class="count" id="territoryCount"></span>
+          </div>
+          <div class="table-scroll" style="max-height: 590px; margin-top: 12px"><table class="dtable" id="dealerTerritoryTable"></table></div>
+        </div>
+        <div class="card">
+          <div class="card-head">
+            <div><h3>Top dealers</h3><div class="card-sub">Top 12 shown; export includes all</div></div>
+            <button class="expbtn" data-export="dealers" title="Download the rows as shown — current month, filter and sort">↓ CSV</button>
+          </div>
+          <div class="table-scroll" style="max-height: 400px; margin-top: 12px"><table class="dtable" id="dealerTable"></table></div>
+        </div>
+      </div>
+
+      </div>
+
+      <div id="mapView" hidden>
+        <div class="section-head"><span class="eyebrow">Map</span><h2>Where import leakage is concentrated</h2><div class="rule"></div></div>
+        <div class="card" id="mapCard">
+          <div class="card-head">
+            <div><h3>Territory map</h3><div class="card-sub" id="mapSub"></div></div>
+          </div>
+          <div class="sortbtns" id="mapMonthFilter" style="margin: 10px 0 2px"></div>
+          <div class="map-layout">
+            <div id="territoryMap"></div>
+            <div class="map-list" id="mapList">
+              <div class="map-list-empty">Click a building or a clustered area for details.</div>
+            </div>
+          </div>
+          <div class="map-legend">
+            <span><i style="background:var(--st-good)"></i>Mostly local (&lt;20% import)</span>
+            <span><i style="background:var(--st-warn)"></i>Mixed (20–50% import)</span>
+            <span><i style="background:var(--st-crit)"></i>Mostly import (&gt;50% import)</span>
+            <span style="margin-left:auto">Pin size &amp; number = installs</span>
+          </div>
+        </div>
+      </div>
+
+      <footer id="footerNote"></footer>
+    </div>
+
+    <div id="tooltip"></div>
+    <script>
+      const RAW = __BB_DATA_JSON__;
+
+      /* ── Connect / Register mode ──────────────────────────────────────────
+         Every breakdown table/chart on the page reads DATA.xxx (district,
+         channel, subChannel, dealerTerritory, supervisor, technology, villages)
+         and each month's m.installs/m.totals/m.daily -- never RAW directly. So
+         switching mode just needs to (a) point DATA at the Connect root or a
+         Register-shaped shadow root with the same keys, and (b) swap each
+         month's live installs/totals/daily fields in place. No render function
+         needs to know which mode is active. */
+      let MODE = "connect";
+      let REG_STATUS = "All"; // only meaningful in register mode
+      const REG_STATUSES = Object.keys(RAW.register.byStatus || {});
+      const REGISTER_ROOT = Object.assign({}, RAW, RAW.register);
+      function registerRootFor(status) {
+        return status === "All" ? REGISTER_ROOT : Object.assign({}, RAW, RAW.register.byStatus[status]);
+      }
+      RAW.months.forEach((m) => {
+        m.installsConnect = m.installs;
+        m.totalsConnect = m.totals;
+        m.dailyConnect = m.daily;
+      });
+      const METRIC = () => (MODE === "register" ? "registrations" : "installs");
+      const METRIC_CAP = () => (MODE === "register" ? "Registrations" : "Installs");
+      // Static section headers/labels that plain HTML can't make reactive on
+      // its own -- every other "installs" mention lives inside a render
+      // function and already goes through METRIC()/METRIC_CAP() each call.
+      function applyModeLabels() {
+        document.getElementById("heroLabel").textContent = METRIC_CAP();
+        document.getElementById("heroSparkLabel").textContent = "Daily " + METRIC();
+        document.getElementById("lblCameFrom").textContent = METRIC();
+        document.getElementById("lblDistrictSub").textContent = METRIC_CAP();
+        document.getElementById("lblChannelSub").textContent = METRIC();
+        document.getElementById("lblDailyH3").textContent = "Daily " + METRIC();
+        document.getElementById("lblTechSub").textContent =
+          MODE === "register" ? "Registration technology, whatever the order became" : "Install technology on connected lines";
+        document.getElementById("lblVillagesH2").textContent = METRIC();
+      }
+      // Builds the status-filter row once -- the label set is fixed (whatever
+      // statuses this cluster actually saw), only its visibility and which
+      // button is "on" change with mode/selection.
+      document.getElementById("statusFilter").insertAdjacentHTML(
+        "beforeend",
+        // Labels come from Python's fixed STATUS_LABELS set (Connect/Pending/
+        // Cancel/Un-Complete/Other), never free-text, so no esc() needed here --
+        // and esc() itself isn't defined yet at this point in script evaluation.
+        ["All"].concat(REG_STATUSES).map((s) =>
+          "<button data-status='" + s + "' class='" + (s === "All" ? "on" : "") + "'>" + s + "</button>"
+        ).join("")
+      );
+      function applyMode(mode, status) {
+        MODE = mode;
+        REG_STATUS = mode === "register" ? (status || "All") : "All";
+        document.getElementById("statusFilter").hidden = mode !== "register";
+        document.querySelectorAll("#statusFilter button").forEach((o) => o.classList.toggle("on", o.dataset.status === REG_STATUS));
+        RAW.months.forEach((m) => {
+          if (mode !== "register") {
+            m.installs = m.installsConnect;
+            m.totals = m.totalsConnect;
+            m.daily = m.dailyConnect;
+          } else if (REG_STATUS === "All") {
+            m.installs = m.installsReg || 0;
+            m.totals = m.totalsReg || { ga: 0, revenue: 0, target: 0 };
+            m.daily = m.dailyReg || [];
+          } else {
+            m.installs = (m.installsRegByStatus && m.installsRegByStatus[REG_STATUS]) || 0;
+            m.totals = (m.totalsRegByStatus && m.totalsRegByStatus[REG_STATUS]) || { ga: 0, revenue: 0, target: 0 };
+            m.daily = (m.dailyRegByStatus && m.dailyRegByStatus[REG_STATUS]) || [];
+          }
+        });
+        DATA = mode === "register" ? registerRootFor(REG_STATUS) : RAW;
+        applyModeLabels();
+        renderMonthCards();
+        renderMapMonthFilter();
+        renderNotesSummary();
+        renderAll();
+        if (VIEW === "map") renderMap();
+      }
+      // Rebuilding every table/chart is the heaviest thing this page does --
+      // doing it synchronously in the same task as the click would block the
+      // button's own "on" state from painting until it's done, so the toggle
+      // itself would look like it's the thing lagging. Two rAFs guarantee a
+      // paint has actually happened in between (one rAF can still land before
+      // the browser paints), so the pressed state shows immediately and the
+      // data catches up a frame later.
+      function applyModeDeferred(mode, status) {
+        requestAnimationFrame(() => requestAnimationFrame(() => applyMode(mode, status)));
+      }
+      document.querySelectorAll("#modeToggle button").forEach((b) =>
+        b.addEventListener("click", () => {
+          if (b.dataset.mode === MODE) return;
+          document.querySelectorAll("#modeToggle button").forEach((o) => o.classList.toggle("active", o.dataset.mode === b.dataset.mode));
+          applyModeDeferred(b.dataset.mode, "All");
+        })
+      );
+      document.addEventListener("click", (e) => {
+        const b = e.target.closest("#statusFilter button");
+        if (!b || b.dataset.status === REG_STATUS) return;
+        applyModeDeferred("register", b.dataset.status);
+      });
+
+      let DATA = RAW;
+
+      /* ── helpers ───────────────────────────────────────────────────────── */
+      const fmt = (n) => Math.round(n).toLocaleString("en-US");
+      const fmt1 = (n) => n.toLocaleString("en-US", { maximumFractionDigits: 1, minimumFractionDigits: 1 });
+      const money = (n) => "฿" + Math.round(n).toLocaleString("en-US");
+      const pct = (n) => (n * 100).toFixed(1) + "%";
+      const esc = (s) =>
+        String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+      const svgEl = (t, a) => {
+        const e = document.createElementNS("http://www.w3.org/2000/svg", t);
+        for (const k in a || {}) e.setAttribute(k, a[k]);
+        return e;
+      };
+      const txt = (a, s) => Object.assign(svgEl("text", a), { textContent: s });
+      function niceMax(v) {
+        if (v <= 0) return 10;
+        const mag = Math.pow(10, Math.floor(Math.log10(v)));
+        const n = v / mag;
+        for (const s of [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]) if (n <= s) return s * mag;
+        return 10 * mag;
+      }
+
+      /* ── month selection ───────────────────────────────────────────────
+         SEL is null for "all months", otherwise a month key. Every measure is
+         stored per month ({m:{"202608":{g,r}}}), so switching is a client-side
+         re-sum -- no reload, no second dataset. In Connect mode this counts
+         completed, KPI-qualifying installs only -- pending/cancelled orders
+         never appear. Register mode counts every booked order regardless of
+         outcome; see the Connect/Register toggle above. */
+      let SEL = null;
+      const MONTHS = DATA.months;
+      const MKEYS = MONTHS.map((m) => m.key);
+      const PROVINCE = DATA.meta.province;
+      const CLUSTER = PROVINCE.split(":").pop().trim();
+      const MCOLORS = ["var(--s1)", "var(--s2)", "var(--s3)", "var(--accent-mark)", "#9166cc"];
+      const mcolor = (k) => MCOLORS[MKEYS.indexOf(k) % MCOLORS.length];
+      const activeKeys = () => (SEL ? [SEL] : MKEYS);
+      const activeMonths = () => (SEL ? MONTHS.filter((m) => m.key === SEL) : MONTHS);
+      function sm(m, f) {
+        let t = 0;
+        for (const k of activeKeys()) if (m && m[k]) t += m[k][f] || 0;
+        return t;
+      }
+      const ga = (r) => sm(r.m, "g");
+      const periodLabel = () => (SEL ? MONTHS.find((m) => m.key === SEL).label : MONTHS.length + " months");
+      /* Elapsed days -- NOT calendar days. A mid-month export must not be averaged
+         over, or target-compared against, days that haven't happened yet. */
+      const elapsedDays = () => activeMonths().reduce((a, m) => a + m.elapsedDays, 0);
+      const anyPartial = () => activeMonths().some((m) => m.partial);
+      /* Target pro-rated to the elapsed portion of any in-progress month, so a
+         half-finished month isn't scored against a whole month's quota. */
+      function activeTarget() {
+        return activeMonths().reduce((a, m) => a + m.totals.target * (m.elapsedDays / m.days), 0);
+      }
+
+      const tooltip = document.getElementById("tooltip");
+      function showTip(e, title, rows) {
+        tooltip.innerHTML = '<div class="t-title">' + title + "</div>" + rows.map((r) => "<div>" + r + "</div>").join("");
+        tooltip.style.opacity = 1;
+        moveTip(e);
+      }
+      function moveTip(e) {
+        let x = e.clientX + 14, y = e.clientY + 14;
+        if (x + 270 > window.innerWidth) x = e.clientX - 274;
+        if (y + 130 > window.innerHeight) y = e.clientY - 130;
+        tooltip.style.left = x + "px";
+        tooltip.style.top = y + "px";
+      }
+      const hideTip = () => (tooltip.style.opacity = 0);
+      function hoverable(el, title, rows) {
+        el.addEventListener("mouseenter", (e) => showTip(e, title, rows));
+        el.addEventListener("mousemove", moveTip);
+        el.addEventListener("mouseleave", hideTip);
+      }
+      const cell = (e) => (e && e.g ? fmt(e.g) : "<span style='color:var(--text-3)'>—</span>");
+
+      document.addEventListener("click", (e) => {
+        const b = e.target.closest("[data-clear]");
+        if (!b) return;
+        const inp = document.getElementById(b.dataset.clear);
+        inp.value = "";
+        inp.dispatchEvent(new Event("input"));
+        inp.focus();
+      });
+
+      /* ── sortable tables ────────────────────────────────────────────────
+         One mechanism for every table: each declares its columns with a value
+         accessor, and the header cells become the sort control. State is kept per
+         table so a month switch or a search re-render preserves the chosen order. */
+      const SORTS = {};
+      const getSort = (id, def) => SORTS[id] || def;
+
+      function thead(id, cols, def) {
+        const st = getSort(id, def);
+        return "<thead><tr>" + cols.map((c) =>
+          "<th class='" + (c.num ? "num " : "") + "sortable" + (st.key === c.key ? " sorted" : "") +
+          "' data-st='" + id + "' data-sk='" + c.key + "' title='Sort by " + esc(c.label) + "'>" +
+          esc(c.label) + (st.key === c.key ? "<span class='sarrow'>" + (st.dir < 0 ? "\u25bc" : "\u25b2") + "</span>" : "") +
+          "</th>").join("") + "</tr></thead>";
+      }
+
+      function sortRows(id, rows, cols, def) {
+        const st = getSort(id, def);
+        const col = cols.find((c) => c.key === st.key) || cols.find((c) => c.key === def.key);
+        if (!col) return rows;
+        return rows.slice().sort((a, b) => {
+          const av = col.val(a), bv = col.val(b);
+          if (typeof av === "string" || typeof bv === "string")
+            return String(av).localeCompare(String(bv), "th") * st.dir;
+          return ((av || 0) - (bv || 0)) * st.dir;
+        });
+      }
+
+      // Header clicks are delegated, so tables can re-render freely without rewiring.
+      const RERENDER = {};
+      document.addEventListener("click", (e) => {
+        const th = e.target.closest("[data-sk]");
+        if (!th) return;
+        const id = th.dataset.st, key = th.dataset.sk, cur = SORTS[id];
+        // First click on a column sorts descending (most interesting first for counts);
+        // clicking the active column flips direction.
+        SORTS[id] = cur && cur.key === key ? { key: key, dir: -cur.dir } : { key: key, dir: -1 };
+        (RERENDER[id] || renderAll)();
+      });
+
+      /* ── CSV export ─────────────────────────────────────────────────────
+         Each table registers what it would export, so the file always matches
+         what is on screen right now -- current month, current filter, current sort. */
+      const EXPORTS = {};
+      function csvCell(v) {
+        const t = v == null ? "" : String(v);
+        return /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+      }
+      function downloadCSV(name, header, rows) {
+        const body = [header].concat(rows).map((r) => r.map(csvCell).join(",")).join("\r\n");
+        // Leading BOM so Excel reads the Thai column values as UTF-8 rather than mojibake.
+        const blob = new Blob(["\ufeff" + body], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+      document.addEventListener("click", (e) => {
+        const b = e.target.closest("[data-export]");
+        if (!b) return;
+        const f = EXPORTS[b.dataset.export];
+        if (!f) return;
+        const { name, header, rows } = f();
+        const scope = (SEL ? MONTHS.find((m) => m.key === SEL).short : "ALL").toLowerCase();
+        downloadCSV("tol-" + name + "-" + scope + ".csv", header, rows);
+      });
+
+      /* ── theme ─────────────────────────────────────────────────────────── */
+      (function () {
+        const saved = localStorage.getItem("bbTheme");
+        if (saved) document.documentElement.setAttribute("data-theme", saved);
+        document.getElementById("themeBtn").addEventListener("click", () => {
+          const cur =
+            document.documentElement.getAttribute("data-theme") ||
+            (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+          const next = cur === "dark" ? "light" : "dark";
+          document.documentElement.setAttribute("data-theme", next);
+          localStorage.setItem("bbTheme", next);
+        });
+      })();
+
+      /* ── static chrome ─────────────────────────────────────────────────── */
+      /* Month cards + the topbar's running total are the only "chrome" pieces
+         that read m.installs, so unlike notesBody/footerNote below (which
+         document the Connect-side filter chain specifically and stay put),
+         these need to re-render on every mode switch. Click wiring is
+         delegated once so repeated regeneration can't pile up listeners. */
+      function renderMonthCards() {
+        const total = MONTHS.reduce((a, m) => a + m.installs, 0);
+        // Surfaced here (not just the page footer) so "how stale is this"
+        // doesn't require scrolling to the bottom to answer -- matters most
+        // on the hosted copy, which only updates when someone remembers to
+        // run the sync.
+        const genAt = new Date(DATA.meta.generatedAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
+        // Two lines, not three -- on a phone this block sits in a sticky
+        // header, so every row of height here is permanent screen real
+        // estate the user never gets back, not just a one-time read.
+        document.getElementById("topbarMeta").innerHTML =
+          MONTHS[0].short + "–" + MONTHS[MONTHS.length - 1].short + " " + MONTHS[0].label.split(" ").pop() +
+          " · " + fmt(total) + " " + METRIC() +
+          "<br/><span style='opacity:0.75'>Updated " + genAt + "</span>";
+        const cards = [{ key: null, label: "All months", val: total, sub: MONTHS.length + " months", c: "var(--accent-mark)", p: false }].concat(
+          MONTHS.map((m) => ({
+            key: m.key, label: m.label.replace(/ \d{4}$/, ""), val: m.installs,
+            sub: m.partial ? "day " + m.elapsedDays + " of " + m.days : METRIC(), c: mcolor(m.key), p: m.partial,
+          }))
+        );
+        document.getElementById("monthCards").innerHTML = cards
+          .map((c) =>
+            "<button class='mcard' data-key='" + (c.key || "") + "' aria-pressed='" + (c.key === SEL) +
+            "' style='--mc:" + c.c + "'><div class='mlabel'>" + esc(c.label) +
+            (c.p ? " <span style='color:var(--st-warn)'>◷</span>" : "") + "</div><div class='mval'>" +
+            fmt(c.val) + "</div><div class='msub'>" + c.sub + "</div></button>"
+          )
+          .join("");
+      }
+      // Compact mirror of #monthCards for the Map tab -- same MONTHS/SEL, just
+      // pill buttons instead of full stat cards (there's no room for those
+      // above the map, and the map doesn't need the install/target numbers
+      // those cards show, only which month(s) to scope the pins to).
+      function renderMapMonthFilter() {
+        const el = document.getElementById("mapMonthFilter");
+        if (!el) return;
+        const items = [{ key: "", label: "All months" }].concat(
+          MONTHS.map((m) => ({ key: m.key, label: m.label.replace(/ \d{4}$/, "") }))
+        );
+        el.innerHTML =
+          "<span class='sortlabel'>Month</span>" +
+          items.map((it) =>
+            "<button type='button' data-key='" + it.key + "' class='" + ((it.key || null) === SEL ? "on" : "") + "'>" +
+            esc(it.label) + "</button>"
+          ).join("");
+      }
+      // Single path for changing SEL from either month picker, so both stay
+      // in sync and the map only redraws the (possibly expensive) marker set
+      // when it's actually the visible tab -- switching to Map later already
+      // calls renderMap() fresh via applyView().
+      function selectMonth(key) {
+        SEL = key || null;
+        document.querySelectorAll(".mcard").forEach((o) => o.setAttribute("aria-pressed", (o.getAttribute("data-key") || null) === SEL));
+        renderMapMonthFilter();
+        renderAll();
+        if (VIEW === "map") renderMap();
+      }
+      document.addEventListener("click", (e) => {
+        const mc = e.target.closest(".mcard");
+        if (mc) { selectMonth(mc.getAttribute("data-key")); return; }
+        const mb = e.target.closest("#mapMonthFilter button");
+        if (mb) { selectMonth(mb.getAttribute("data-key")); return; }
+      });
+
+      // The collapsed chip right under the hero -- worth keeping mode-aware even
+      // though the expanded methodology prose below it (notesBody) stays fixed
+      // to documenting the Connect-side filter chain specifically.
+      function renderNotesSummary() {
+        const dupes = MONTHS.reduce((a, m) => a + m.dupes, 0);
+        document.getElementById("notesSummary").innerHTML =
+          MODE === "register"
+            ? MONTHS.length + " monthly exports · <strong>SOURCES = TOL-REGISTER</strong>" +
+              (REG_STATUS === "All" ? ", any outcome" : ", status = <strong>" + REG_STATUS + "</strong>") + " · KPI-flagged only"
+            : MONTHS.length + " monthly exports · <strong>SOURCES = TOL-CONNECT</strong>, KPI installs only · " + fmt(dupes) + " duplicates excluded";
+      }
+
+      (function chrome() {
+        const meta = DATA.meta;
+        const dupes = MONTHS.reduce((a, m) => a + m.dupes, 0);
+        const other = MONTHS.reduce((a, m) => a + m.otherStatus, 0);
+        const nonKpi = MONTHS.reduce((a, m) => a + (m.nonKpiConnect || 0), 0);
+        document.getElementById("topbarSub").textContent = "TrueOnline Broadband · " + PROVINCE;
+        renderMonthCards();
+        renderMapMonthFilter();
+        renderNotesSummary();
+
+        document.getElementById("notesBody").innerHTML =
+          "<p><strong>What this counts — the exact filter chain.</strong> Every figure on this page survives four "
+          + "successive filters, in order:</p>"
+          + "<p style=\"padding-left:14px;border-left:2px solid var(--line);margin-left:2px\">"
+          + "<strong>1.</strong> <code>ACTUAL_TYPE = ACTUAL</code> — real orders, not target rows.<br/>"
+          + "<strong>2.</strong> <code>TDS_PROVINCE_CUST</code> = this cluster — the customer is physically here.<br/>"
+          + "<strong>3.</strong> <code>SOURCES = TOL-CONNECT</code> — the authoritative connect feed; nothing from "
+          + "<code>TOL-REGISTER</code> is counted (<strong>" + fmt(dupes) + " duplicate rows</strong> dropped). TOL-CONNECT "
+          + "holds <em>only</em> completed connections — no pending or cancelled order exists in it at all, which is why "
+          + "none appear anywhere on this page (" + fmt(other) + " such rows live in TOL-REGISTER and are ignored).<br/>"
+          + "<strong>4.</strong> <code>FLAG_KPI = KPI</code> — drops a further <strong>" + fmt(nonKpi) + "</strong> "
+          + "TOL-CONNECT rows (migrations, internal and data-only lines). These are genuine connections, but excluding them "
+          + "keeps installs like-for-like with the KPI target they are scored against; counting them would widen the "
+          + "numerator only and push vs-target past 100%.</p>" +
+          "<p><strong>Sources.</strong> " + MONTHS.map((m) => "<code>" + esc(m.file) + "</code> (" + m.label + ")").join(", ") +
+          ". Months are discovered from the folder automatically and their month read from the data itself, so adding one " +
+          "means dropping the export into <code>TOL Tracker/Data/</code> and re-running <code>python3 "TOL Tracker/sync/aggregate_bb.py"</code> — no code " +
+          "edit. The schema drifts between months (June carries 130 columns and CRLF line endings against 134 and LF later), " +
+          "so every field is read by column name, never position.</p>" +
+          "<p><strong>Scope.</strong> Filtered on <code>TDS_PROVINCE_CUST</code> — where the customer actually is — not the " +
+          "selling dealer's territory, which is what makes import selling visible. Targets are the exception: they carry no " +
+          "customer, so they're scoped by dealer territory instead, and are <strong>pro-rated by elapsed days</strong> for any " +
+          "month still in progress. District comes from the middle segment of <code>ORG_LEVEL_AA_NAME_CUST</code>.</p>" +
+          "<p><strong>Village matching.</strong> <code>" + esc(meta.ftthSourceFile) + "</code> (" + fmt(meta.ftthRowCount) +
+          " active ports, a single " + new Date(meta.ftthSourceMTime).toLocaleDateString("en-US", { dateStyle: "medium" }) +
+          " census — it has no monthly history) shares no key with the exports' <code>BUILDING_CODE</code>, so villages match " +
+          "by <strong>exact name only</strong> after normalising spacing and prefixes. That matches <strong>" +
+          meta.matchedCount + " of " + fmt(meta.totalVillages) + " villages (" + meta.matchRateVillages +
+          "%)</strong>; everything unmatched is listed separately rather than guessed at.</p>";
+
+        document.getElementById("footerNote").innerHTML =
+          MONTHS.map((m) => esc(m.file)).join(" · ") + " · " + esc(meta.ftthSourceFile) +
+          "<br/>Aggregated " + new Date(meta.generatedAt).toLocaleString("en-US") +
+          " · TDS_PROVINCE_CUST = “" + esc(PROVINCE) + "” · SOURCES = TOL-CONNECT · installs only";
+      })();
+
+      /* ── hero ──────────────────────────────────────────────────────────── */
+      function renderHero() {
+        const ms = activeMonths();
+        const gaT = ms.reduce((a, m) => a + m.totals.ga, 0);
+        const rev = ms.reduce((a, m) => a + m.totals.revenue, 0);
+        const tgt = activeTarget();
+        const partial = anyPartial();
+        document.getElementById("heroGa").textContent = fmt(gaT);
+        let note = money(rev) + " net RC" + (partial ? " · <span style='color:var(--st-warn)'>month in progress</span>" : "");
+        if (MODE === "register" && REG_STATUS !== "All") {
+          note += " · <span style='color:var(--text-3)'>showing " + REG_STATUS.toLowerCase() + " only</span>";
+        } else if (MODE === "register") {
+          // Registrations include every outcome; break down where they landed so
+          // the gap against the Connect-mode figure (completed only) is legible.
+          const funnel = {};
+          ms.forEach((m) => Object.entries(m.registerByStatus || {}).forEach(([st, n]) => (funnel[st] = (funnel[st] || 0) + n)));
+          const parts = Object.entries(funnel).sort((a, b) => b[1] - a[1]).map(([st, n]) => fmt(n) + " " + st.toLowerCase());
+          if (parts.length) note += " · " + parts.join(", ");
+        }
+        document.getElementById("heroNote").innerHTML = note;
+        document.getElementById("heroMonth").textContent = periodLabel();
+
+        const a = tgt > 0 ? gaT / tgt : null;
+        const col = a == null ? "var(--text-3)" : a >= 1 ? "var(--st-good)" : a >= 0.7 ? "var(--st-warn)" : "var(--st-crit)";
+        const mf = document.getElementById("heroMeter");
+        mf.style.width = Math.max(0, Math.min(1, a || 0)) * 100 + "%";
+        mf.style.background = col;
+        document.getElementById("heroMeterL").innerHTML =
+          "<span style='color:" + col + ";font-weight:600'>" + (a == null ? "—" : pct(a)) + "</span> of target" +
+          (partial ? " <span style='color:var(--text-3)'>(pro-rated)</span>" : "");
+        document.getElementById("heroMeterR").textContent = fmt(gaT) + " / " + fmt(tgt);
+
+        const pts = [];
+        ms.forEach((m) => m.daily.forEach((d) => pts.push({ m, d })));
+        const svg = document.getElementById("sparkChart");
+        svg.innerHTML = "";
+        // The chart itself carries no text a screen reader can read -- give
+        // it a one-line spoken summary instead of leaving it silent.
+        const peakPt = pts.reduce((a, p) => (p.d.ga > a.d.ga ? p : a), pts[0]);
+        svg.setAttribute("role", "img");
+        svg.setAttribute("aria-label",
+          "Daily " + METRIC() + " for " + periodLabel() + ": " + fmt(gaT) + " total, peak " +
+          fmt(peakPt.d.ga) + " on " + peakPt.m.short + " " + peakPt.d.day + ".");
+        const W = 760, H = 132, pad = 4;
+        const max = niceMax(Math.max(...pts.map((p) => p.d.ga), 1) * 1.1);
+        const X = (i) => (i / Math.max(pts.length - 1, 1)) * (W - pad * 2) + pad;
+        const Y = (v) => H - 14 - (v / max) * (H - 30);
+
+        let dLine = "";
+        pts.forEach((p, i) => (dLine += (i ? "L" : "M") + X(i).toFixed(1) + "," + Y(p.d.ga).toFixed(1)));
+        const dArea = dLine + "L" + X(pts.length - 1).toFixed(1) + "," + (H - 14) + "L" + X(0).toFixed(1) + "," + (H - 14) + "Z";
+
+        const defs = svgEl("defs");
+        const g = svgEl("linearGradient", { id: "sg", x1: "0", y1: "0", x2: "0", y2: "1" });
+        g.appendChild(svgEl("stop", { offset: "0%", "stop-color": "var(--accent-mark)", "stop-opacity": "0.26" }));
+        g.appendChild(svgEl("stop", { offset: "100%", "stop-color": "var(--accent-mark)", "stop-opacity": "0.02" }));
+        defs.appendChild(g);
+        svg.appendChild(defs);
+        svg.appendChild(svgEl("line", { x1: pad, x2: W - pad, y1: H - 14, y2: H - 14, class: "gridline" }));
+        svg.appendChild(svgEl("path", { d: dArea, fill: "url(#sg)" }));
+        svg.appendChild(svgEl("path", {
+          d: dLine, fill: "none", stroke: "var(--accent-mark)", "stroke-width": 2,
+          "stroke-linejoin": "round", "stroke-linecap": "round", "vector-effect": "non-scaling-stroke",
+        }));
+
+        if (ms.length > 1) {
+          let acc = 0;
+          ms.forEach((m, mi) => {
+            const start = acc;
+            acc += m.daily.length;
+            if (mi > 0)
+              svg.appendChild(svgEl("line", { x1: X(start - 0.5), x2: X(start - 0.5), y1: 2, y2: H - 14, stroke: "var(--line)", "stroke-width": 1, "stroke-dasharray": "2,3" }));
+            svg.appendChild(txt({ x: X(start + m.daily.length / 2), y: H - 1, class: "axis-label", "text-anchor": "middle" }, m.short));
+          });
+        } else {
+          [1, 8, 15, 22, 29].forEach((dd) => {
+            if (dd - 1 < pts.length) svg.appendChild(txt({ x: X(dd - 1), y: H - 1, class: "axis-label", "text-anchor": "middle" }, dd));
+          });
+        }
+
+        const bw = (W - pad * 2) / Math.max(pts.length, 1);
+        pts.forEach((p, i) => {
+          const hit = svgEl("rect", { x: X(i) - bw / 2, y: 0, width: bw, height: H, fill: "transparent", class: "mark" });
+          hoverable(hit, p.m.short + " " + p.d.day, [METRIC_CAP() + " <b>" + fmt(p.d.ga) + "</b>", "<span class='t-dim'>" + money(p.d.revenue) + "</span>"]);
+          svg.appendChild(hit);
+        });
+        const peak = pts.reduce((a, b) => (b.d.ga > a.d.ga ? b : a), pts[0]);
+        const pi = pts.indexOf(peak);
+        svg.appendChild(svgEl("circle", { cx: X(pi), cy: Y(peak.d.ga), r: 3.5, fill: "var(--accent-mark)", stroke: "var(--panel)", "stroke-width": 2 }));
+        svg.appendChild(txt({ x: Math.max(34, Math.min(X(pi), W - 34)), y: Y(peak.d.ga) - 8, class: "axis-strong", "text-anchor": "middle" }, "peak " + peak.d.ga));
+      }
+
+      /* ── tiles ─────────────────────────────────────────────────────────── */
+      function renderTiles() {
+        const ms = activeMonths();
+        const gaT = ms.reduce((a, m) => a + m.totals.ga, 0);
+        const rev = ms.reduce((a, m) => a + m.totals.revenue, 0);
+        const days = elapsedDays();
+        const terr = DATA.dealerTerritory.map((d) => ({ name: d.name, g: ga(d) })).filter((d) => d.g > 0);
+        const outG = terr.filter((d) => d.name !== PROVINCE).reduce((a, d) => a + d.g, 0);
+        const importShare = gaT ? outG / gaT : 0;
+        const dist = DATA.district.map((d) => ({ name: d.name, g: ga(d) })).filter((d) => d.g > 0).sort((a, b) => b.g - a.g);
+        const list = [
+          { label: "Net RC Revenue", value: money(rev), sub: "sum of NET_RC on " + METRIC() },
+          { label: "Avg " + METRIC_CAP() + " / Day", value: (gaT / Math.max(days, 1)).toFixed(1), sub: "over " + days + " elapsed days" },
+          { label: "Import Sales", value: pct(importShare), sub: fmt(outG) + " sold by outside territories", cls: importShare > 0.5 ? "v-warn" : "" },
+          { label: "Top District", value: dist.length ? esc(dist[0].name) : "—", sub: dist.length ? fmt(dist[0].g) + " " + METRIC() + " · " + pct(dist[0].g / gaT) : "" },
+        ];
+        document.getElementById("tiles").innerHTML = list
+          .map((x) => "<div class='tile'><div class='label'>" + x.label + "</div><div class='value " + (x.cls || "") +
+            "' style='" + (x.label === "Top District" ? "font-size:22px" : "") + "'>" + x.value + "</div><div class='sub'>" + x.sub + "</div></div>")
+          .join("");
+      }
+
+      /* ── insights ──────────────────────────────────────────────────────── */
+      function renderInsights() {
+        const out = [];
+        const ms = activeMonths();
+        const gaT = ms.reduce((a, m) => a + m.totals.ga, 0);
+
+        const dormant = DATA.subChannel.filter((s) => s.t && activeKeys().some((k) => s.t[k]) && ga(s) === 0);
+        if (dormant.length) {
+          const tot = dormant.reduce((a, s) => a + activeKeys().reduce((b, k) => b + (s.t[k] || 0), 0), 0);
+          out.push({
+            lvl: "crit",
+            html: "<b>" + dormant.length + " funded sub-channel" + (dormant.length > 1 ? "s" : "") +
+              "</b> produced zero " + METRIC() + " while carrying a target — " + dormant.slice(0, 4).map((s) => esc(s.name)).join(", ") +
+              " — leaving <b>" + fmt1(tot) + "</b> of quota unfulfilled.",
+          });
+        }
+
+        const terr = DATA.dealerTerritory.map((d) => ({ name: d.name, g: ga(d) })).filter((d) => d.g > 0);
+        const outG = terr.filter((d) => d.name !== PROVINCE).reduce((a, d) => a + d.g, 0);
+        const homeG = (terr.find((d) => d.name === PROVINCE) || { g: 0 }).g;
+        if (outG > 0)
+          out.push({
+            lvl: "warn",
+            html: "<b>" + pct(outG / (outG + homeG)) + " of " + METRIC() + "</b> were import sales — dealers assigned to another " +
+              "territory (" + fmt(outG) + " vs " + fmt(homeG) + " from the home team) across <b>" + (terr.length - 1) +
+              "</b> territories — worth checking whether that is deliberate coverage or leakage.",
+          });
+
+        if (!SEL && MONTHS.length > 1) {
+          const a = MONTHS[MONTHS.length - 2], b = MONTHS[MONTHS.length - 1];
+          if (!b.partial && a.totals.ga) {
+            const d = (b.totals.ga - a.totals.ga) / a.totals.ga;
+            if (Math.abs(d) >= 0.03)
+              out.push({
+                lvl: d >= 0 ? "good" : "warn",
+                html: METRIC_CAP() + " " + (d >= 0 ? "rose" : "fell") + " <b>" + (d >= 0 ? "+" : "") + (d * 100).toFixed(1) +
+                  "%</b> from " + a.label + " (" + fmt(a.totals.ga) + ") to " + b.label + " (" + fmt(b.totals.ga) + ").",
+              });
+          }
+        }
+
+        if (anyPartial()) {
+          const p = ms.filter((m) => m.partial).map((m) => m.label + " (day " + m.elapsedDays + " of " + m.days + ")").join(", ");
+          out.push({
+            lvl: "warn",
+            html: "<b>Month still in progress:</b> " + p + ". Averages use elapsed days and the target is pro-rated, " +
+              "so this is a like-for-like comparison rather than a full month's quota.",
+          });
+        }
+
+        const dist = DATA.district.map((d) => ({ name: d.name, g: ga(d) })).filter((d) => d.g > 0).sort((a, b) => b.g - a.g);
+        if (dist.length)
+          out.push({
+            lvl: "good",
+            html: "<b>" + esc(dist[0].name) + "</b> leads with <b>" + fmt(dist[0].g) + "</b> " + METRIC() + ", " +
+              pct(dist[0].g / gaT) + " of the " + dist.length + "-district total.",
+          });
+
+        if (!out.length) out.push({ lvl: "good", html: "No material anomalies surfaced for " + periodLabel() + "." });
+        const ic = { good: ["var(--st-good)", "✓"], warn: ["var(--st-warn)", "!"], crit: ["var(--st-crit)", "!"] };
+        document.getElementById("insights").innerHTML = out
+          .map((o) => "<div class='insight'><span class='ic' style='background:" + ic[o.lvl][0] + "'>" + ic[o.lvl][1] + "</span><div>" + o.html + "</div></div>")
+          .join("");
+      }
+
+      /* ── by district ───────────────────────────────────────────────────── */
+      function renderDistrict() {
+        const rows = DATA.district.map((d) => ({ name: d.name, m: d.m, total: ga(d) })).filter((d) => d.total > 0).sort((a, b) => b.total - a.total);
+        const max = Math.max(...rows.map((r) => r.total), 1);
+        const keys = activeKeys();
+        document.getElementById("districtLegend").innerHTML =
+          keys.length > 1
+            ? MONTHS.filter((m) => keys.includes(m.key)).map((m) => "<span class='item'><span class='sw' style='background:" + mcolor(m.key) + "'></span>" + m.short + "</span>").join("")
+            : "";
+        document.getElementById("districtRows").innerHTML = rows
+          .map((r) => {
+            const segs = keys.filter((k) => r.m[k] && r.m[k].g)
+              .map((k) => "<div class='dseg' style='width:" + (r.m[k].g / max) * 100 + "%;background:" + mcolor(k) + "' title='" + esc(r.name) + " · " + (MONTHS.find((m) => m.key === k) || {}).short + " " + r.m[k].g + "'></div>")
+              .join("");
+            return "<div class='drow'><div class='dname' title='" + esc(r.name) + "'>" + esc(r.name) + "</div><div class='dtrack'>" + segs + "</div><div class='dval'>" + fmt(r.total) + "</div></div>";
+          })
+          .join("");
+      }
+
+      /* ── channel share ─────────────────────────────────────────────────── */
+      function renderChannel() {
+        const rows = DATA.channel.map((c) => ({ name: c.name, total: ga(c), rev: sm(c.m, "r") })).filter((c) => c.total > 0).sort((a, b) => b.total - a.total);
+        const sum = rows.reduce((a, r) => a + r.total, 0) || 1;
+        const COL = ["var(--s1)", "var(--s2)", "var(--s3)", "var(--text-3)"];
+        document.getElementById("channelRows").innerHTML = rows
+          .map((r, i) => {
+            const p = (r.total / sum) * 100;
+            return "<div class='crow'><div class='cname' style='color:" + COL[Math.min(i, 3)] + "'>" + esc(r.name) + "</div>" +
+              "<div class='ctrack'><div class='cfill' style='width:" + p + "%;background:" + COL[Math.min(i, 3)] + "'>" +
+              (p >= 12 ? "<span class='cpct'>" + p.toFixed(0) + "%</span>" : "<span class='cpct out'>" + p.toFixed(0) + "%</span>") +
+              "</div></div><div class='cval'>" + fmt(r.total) + "</div></div>";
+          })
+          .join("");
+      }
+
+      /* Which single day the Buildings-per-day card is pinned to, set by
+         clicking a bar below (only bars belonging to RAW.buildingsDaily's
+         month are clickable -- that's the only month with per-building day
+         data). null means the card's default: every elapsed day as its own
+         column. */
+      let selectedDailyDay = null;
+
+      /* ── daily installs, stacked by district ───────────────────────────── */
+      function renderStack() {
+        const svg = document.getElementById("stackChart");
+        svg.innerHTML = "";
+        const ms = activeMonths();
+        document.getElementById("stackSub").textContent =
+          METRIC_CAP() + " per day across " + periodLabel() + (anyPartial() ? " · month still in progress" : "");
+        document.getElementById("stackLegend").innerHTML = "";
+
+        const pts = [];
+        ms.forEach((m) => m.daily.forEach((d) => pts.push({ m, d })));
+        const peakPt = pts.reduce((a, p) => (p.d.ga > a.d.ga ? p : a), pts[0]);
+        svg.setAttribute("role", "img");
+        const clickableInView = ms.find((m) => m.key === RAW.buildingsDaily.monthKey);
+        svg.setAttribute("aria-label",
+          "Daily " + METRIC() + " bar chart for " + periodLabel() + ", peak " + fmt(peakPt.d.ga) +
+          " on " + peakPt.m.short + " " + peakPt.d.day + "." +
+          (clickableInView ? " Bars for " + clickableInView.label + " are clickable to see that day's buildings." : ""));
+        const W = 720, H = 250, padL = 30, padR = 6, padT = 8, padB = 22;
+        const iW = W - padL - padR, iH = H - padT - padB;
+        const max = niceMax(Math.max(...pts.map((p) => p.d.ga), 1) * 1.08);
+        const step = iW / pts.length;
+        const bw = Math.min(step * 0.7, 16);
+
+        [0, 0.5, 1].forEach((fr) => {
+          const yy = padT + iH - fr * iH;
+          svg.appendChild(svgEl("line", { x1: padL, x2: W - padR, y1: yy, y2: yy, class: "gridline" }));
+          svg.appendChild(txt({ x: padL - 7, y: yy + 3, class: "axis-label", "text-anchor": "end" }, fmt(max * fr)));
+        });
+
+        let acc = 0;
+        ms.forEach((m, mi) => {
+          const start = acc;
+          acc += m.daily.length;
+          if (mi > 0) svg.appendChild(svgEl("line", { x1: padL + start * step, x2: padL + start * step, y1: padT, y2: padT + iH, stroke: "var(--line)", "stroke-width": 1, "stroke-dasharray": "2,3" }));
+          if (ms.length > 1) svg.appendChild(txt({ x: padL + (start + m.daily.length / 2) * step, y: H - 6, class: "axis-label", "text-anchor": "middle" }, m.short));
+        });
+
+        // Only the month RAW.buildingsDaily actually covers has per-building
+        // day data, so only its bars can drive that card -- other months'
+        // bars stay hover-only, same as before.
+        const clickableMonth = RAW.buildingsDaily.monthKey;
+        pts.forEach((p, i) => {
+          const x = padL + i * step + (step - bw) / 2;
+          const h = (p.d.ga / max) * iH;
+          // m.daily is padded out to every calendar day (see aggregate_bb.py),
+          // but only elapsed days have actually happened -- a day that
+          // hasn't occurred yet would just pin the card to an empty result.
+          const isClickable = p.m.key === clickableMonth && p.d.day <= RAW.buildingsDaily.elapsedDays;
+          const isSelected = isClickable && selectedDailyDay === p.d.day;
+          const attrs = { x, y: padT + iH - h, width: bw, height: Math.max(h, p.d.ga ? 1.2 : 0), rx: 2, fill: mcolor(p.m.key), class: "mark" };
+          if (isSelected) {
+            attrs.stroke = "var(--ink)";
+            attrs["stroke-width"] = 2;
+          }
+          const r = svgEl("rect", attrs);
+          hoverable(r, p.m.short + " " + p.d.day, ["Installs <b>" + fmt(p.d.ga) + "</b>", "<span class='t-dim'>" + money(p.d.revenue) + "</span>"]
+            .concat(isClickable ? ["<span class='t-dim'>Click to see that day's buildings</span>"] : []));
+          if (isClickable) {
+            r.style.cursor = "pointer";
+            r.addEventListener("click", () => {
+              selectedDailyDay = isSelected ? null : p.d.day;
+              renderStack();
+              renderBuildingsDaily();
+            });
+          }
+          svg.appendChild(r);
+          if (ms.length === 1 && (p.d.day % 5 === 0 || p.d.day === 1))
+            svg.appendChild(txt({ x: x + bw / 2, y: H - 6, class: "axis-label", "text-anchor": "middle" }, p.d.day));
+        });
+      }
+
+      /* ── month-over-month movers ───────────────────────────────────────── */
+      const MOVER_MAX = 8; // keep in sync with #moverRows min-height in the stylesheet
+      let moverDim = "district";
+      let moverOrigin = "all";
+      document.querySelectorAll("#moverDims button").forEach((b) =>
+        b.addEventListener("click", () => {
+          moverDim = b.dataset.dim;
+          document.querySelectorAll("#moverDims button").forEach((o) => o.classList.toggle("on", o.dataset.dim === moverDim));
+          renderMovers();
+        })
+      );
+      document.querySelectorAll("#moverOrigin button").forEach((b) =>
+        b.addEventListener("click", () => {
+          moverOrigin = b.dataset.org;
+          document.querySelectorAll("#moverOrigin button").forEach((o) => o.classList.toggle("on", o.dataset.org === moverOrigin));
+          renderMovers();
+        })
+      );
+      /* Installs for one entity in one month, narrowed by how the sale originated.
+         Only the import half is stored per entity; local is total minus import. */
+      function originG(r, mk) {
+        const tot = (r.m[mk] || {}).g || 0;
+        const imp = r.mi && r.mi[mk] ? r.mi[mk].g || 0 : 0;
+        return moverOrigin === "import" ? imp : moverOrigin === "local" ? tot - imp : tot;
+      }
+      function renderMovers() {
+        const el = document.getElementById("moverRows");
+        const sub = document.getElementById("moversSub");
+        // Compare the selected month against the one before it; with "all months"
+        // selected, compare the two most recent.
+        const i = SEL ? MKEYS.indexOf(SEL) : MKEYS.length - 1;
+        if (i < 1) {
+          sub.textContent = "Needs a preceding month to compare against.";
+          el.innerHTML = "<div class='mv-empty'>No earlier month to compare " +
+            (SEL ? esc(MONTHS[i].label) : "this period") + " against.</div>";
+          return;
+        }
+        const cur = MONTHS[i], prev = MONTHS[i - 1];
+        const slice = moverOrigin === "all" ? METRIC()
+          : moverOrigin === "local" ? "<strong>local</strong> " + METRIC() + " (home-territory dealers)"
+          : "<strong>import</strong> " + METRIC() + " (outside-territory dealers)";
+        sub.innerHTML = "Change in " + slice + ", <strong>" + esc(prev.short) + " → " + esc(cur.short) + "</strong>" +
+          (cur.partial ? " <span style='color:var(--st-warn)'>(" + cur.short + " still in progress — partial)</span>" : "");
+
+        const rows = (DATA[moverDim] || [])
+          .map((r) => {
+            const a = originG(r, prev.key);
+            const b = originG(r, cur.key);
+            return { name: r.name, a, b, d: b - a };
+          })
+          .filter((r) => r.a || r.b)
+          .sort((x, y) => Math.abs(y.d) - Math.abs(x.d))
+          .slice(0, MOVER_MAX);
+
+        if (!rows.length) {
+          el.innerHTML = "<div class='mv-empty'>No movement to show.</div>";
+          return;
+        }
+        const maxAbs = Math.max(...rows.map((r) => Math.abs(r.d)), 1);
+        el.innerHTML = rows
+          .map((r) => {
+            const up = r.d >= 0;
+            const w = (Math.abs(r.d) / maxAbs) * 50;
+            const col = r.d === 0 ? "var(--text-3)" : up ? "var(--st-good)" : "var(--st-crit)";
+            return "<div class='mvrow'><div class='mvname' title='" + esc(r.name) + "'>" + esc(r.name) + "</div>" +
+              "<div class='mvbar'><div class='mvneg'>" + (!up ? "<span style='width:" + w + "%;background:" + col + "'></span>" : "") + "</div>" +
+              "<div class='mvpos'>" + (up && r.d ? "<span style='width:" + w + "%;background:" + col + "'></span>" : "") + "</div></div>" +
+              "<div class='mvval' style='color:" + col + "'>" + (r.d > 0 ? "+" : "") + fmt(r.d) + "</div>" +
+              "<div class='mvraw'>" + fmt(r.a) + "→" + fmt(r.b) + "</div></div>";
+          })
+          .join("");
+      }
+
+      /* ── technology ────────────────────────────────────────────────────── */
+      function renderTech() {
+        const svg = document.getElementById("techChart");
+        svg.innerHTML = "";
+        const keys = activeKeys();
+        const rows = Object.entries(DATA.technology)
+          .map(([n, m]) => [n, keys.reduce((a, k) => a + (m[k] || 0), 0)])
+          .filter((e) => e[1] > 0)
+          .sort((a, b) => b[1] - a[1]);
+        const total = rows.reduce((a, e) => a + e[1], 0) || 1;
+        svg.setAttribute("role", "img");
+        svg.setAttribute("aria-label", "Technology breakdown: " +
+          rows.map(([name, v]) => name + " " + fmt(v) + " (" + ((v / total) * 100).toFixed(1) + "%)").join(", ") + ".");
+        const W = 460, padL = 8, padR = 8, top = 4, rowH = 46;
+        const H = top + rows.length * rowH;
+        svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+        const iW = W - padL - padR;
+        const max = Math.max(...rows.map((e) => e[1]), 1);
+        const RAMP = ["#2a78d6", "#5598e7", "#86b6ef", "#b7d3f6"];
+        rows.forEach(([name, v], i) => {
+          const y0 = top + i * rowH;
+          svg.appendChild(txt({ x: padL, y: y0 + 14, class: "axis-strong" }, name));
+          svg.appendChild(txt({ x: W - padR, y: y0 + 14, class: "axis-strong", "text-anchor": "end", style: "fill:var(--ink);font-weight:600" }, fmt(v) + "  " + ((v / total) * 100).toFixed(1) + "%"));
+          svg.appendChild(svgEl("rect", { x: padL, y: y0 + 22, width: iW, height: 11, rx: 5.5, fill: "var(--grid)" }));
+          const r = svgEl("rect", { x: padL, y: y0 + 22, width: Math.max((v / max) * iW, 2), height: 11, rx: 5.5, fill: RAMP[Math.min(i, 3)], class: "mark" });
+          hoverable(r, name, [METRIC_CAP() + " <b>" + fmt(v) + "</b>", "Share <b>" + pct(v / total) + "</b>"]);
+          svg.appendChild(r);
+        });
+      }
+
+      /* ── FTTH tiles ────────────────────────────────────────────────────── */
+      function renderFtthTiles() {
+        const meta = DATA.meta;
+        const withInstalls = DATA.villages.matched.filter((r) => ga(r) > 0);
+        const active = withInstalls.reduce((a, r) => a + r.activeFtth, 0);
+        const g = withInstalls.reduce((a, r) => a + ga(r), 0);
+        const list = [
+          { label: "Active FTTH Base", value: fmt(meta.totalActiveFtth), sub: "ports across " + fmt(meta.totalVillages) + " villages" },
+          { label: "Villages With " + METRIC_CAP(), value: fmt(withInstalls.length), sub: "in " + periodLabel() + " · exact-name match" },
+          { label: METRIC_CAP() + " In Those", value: fmt(g), sub: "of " + fmt(activeMonths().reduce((a, m) => a + m.totals.ga, 0)) + " total" },
+          { label: "New Rate", value: active ? ((g / active) * 100).toFixed(2) + "%" : "—", sub: METRIC() + " ÷ active base" },
+        ];
+        document.getElementById("ftthTiles").innerHTML = list
+          .map((x) => "<div class='tile'><div class='label'>" + x.label + "</div><div class='value'>" + x.value + "</div><div class='sub'>" + x.sub + "</div></div>")
+          .join("");
+      }
+
+      /* ── searchable tables ─────────────────────────────────────────────── */
+      function wireSearch(id, countId, getAll, match, render, tableId, cols) {
+        const input = document.getElementById(id), countEl = document.getElementById(countId);
+        const run = () => {
+          const q = input.value.trim().toLowerCase();
+          const all = getAll();
+          const rows = q ? all.filter((r) => match(r, q)) : all;
+          countEl.textContent = fmt(rows.length) + " of " + fmt(all.length);
+          render(rows);
+          // An empty result must say so -- otherwise the table is just a blank box
+          // and only the small "0 of N" counter hints at what happened.
+          if (!rows.length && tableId) {
+            const tb = document.querySelector("#" + tableId + " tbody");
+            if (tb)
+              tb.innerHTML =
+                "<tr><td colspan='" + (cols || 6) + "' class='empty-state'>No match for <strong>" +
+                esc(input.value.trim()) + "</strong>. <button type='button' class='linkbtn' data-clear='" + id +
+                "'>Clear filter</button></td></tr>";
+          }
+        };
+        if (!input.dataset.wired) {
+          let deb = null;
+          input.addEventListener("input", () => {
+            clearTimeout(deb);
+            deb = setTimeout(run, 150);
+          });
+          input.dataset.wired = "1";
+        }
+        run();
+      }
+
+      /* Nested channel > sub-channel > territory > dealer rows. Every node has its
+         own toggle; `expanded` is keyed "<row>><i.j.k>" so open state survives a
+         re-render from search, a sibling toggle, or a month change. */
+      function bdRows(nodes, rowKey, path, depth, expanded, pad, gaFn) {
+        gaFn = gaFn || ga;
+        let html = "";
+        nodes.forEach((n, i) => {
+          if (gaFn(n) === 0) return;
+          const p = path.concat(i), ek = rowKey + ">" + p.join(".");
+          const kids = !!(n.children && n.children.length);
+          const open = expanded.has(ek);
+          const imported = depth === 2 && n.name !== PROVINCE;
+          html +=
+            "<tr class='bd" + (kids ? " expandable" : "") + "' data-ekey='" + esc(ek) + "'>" +
+            "<td><div class='bd-cell bd-" + depth + "' style='padding-left:" + (depth * 15 + 4) + "px'>" +
+            (depth > 0 ? "<span class='bd-rail' style='left:" + (depth * 15 - 7) + "px'></span>" : "") +
+            (kids ? "<span class='tog" + (open ? " on" : "") + "'>" + (open ? "−" : "+") + "</span>" : "<span style='width:15px;flex:none'></span>") +
+            "<span class='bd-nm'>" + esc(n.name) + "</span>" + (imported ? "<span class='pill warn'>import</span>" : "") +
+            "</div></td>" + pad(n) + "</tr>";
+          if (kids && open) html += bdRows(n.children, rowKey, p, depth + 1, expanded, pad, gaFn);
+        });
+        return html;
+      }
+      function wireRows(tbl, expanded, render, getList) {
+        tbl.querySelectorAll("tr.expandable").forEach((tr) => {
+          const k = tr.getAttribute("data-key") || tr.getAttribute("data-ekey");
+          const toggle = () => {
+            expanded.has(k) ? expanded.delete(k) : expanded.add(k);
+            render(getList());
+          };
+          // Reachable and operable by keyboard, not mouse-only.
+          tr.tabIndex = 0;
+          tr.setAttribute("role", "button");
+          tr.setAttribute("aria-expanded", expanded.has(k) ? "true" : "false");
+          tr.addEventListener("click", (e) => {
+            e.stopPropagation();
+            toggle();
+          });
+          tr.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              e.stopPropagation();
+              toggle();
+            }
+          });
+        });
+      }
+
+      const expBldg = new Set();
+      const DISTRICT_COLORS = ["var(--s1)", "var(--s2)", "var(--s3)", "var(--accent-mark)", "#9166cc"];
+      const districtColor = (() => {
+        const order = DATA.district.map((d) => d.name);
+        return (name) => DISTRICT_COLORS[Math.max(order.indexOf(name), 0) % DISTRICT_COLORS.length];
+      })();
+      function renderBuildings() {
+        const meta = DATA.meta;
+        const combined = DATA.villages.matched.concat(DATA.villages.bbOnly);
+        const all = combined.filter((r) => ga(r) > 0);
+        const topOverall = combined.reduce((a, r) => (ga(r) > ga(a) ? r : a), combined[0]);
+
+        document.getElementById("bldgSub").innerHTML =
+          fmt(all.length) + " buildings had " + METRIC() + " in " + periodLabel() +
+          ". <strong>Click a row</strong> to drill into channel \u2192 sub-channel \u2192 territory \u2192 dealer, or a column " +
+          "header to re-sort.";
+
+        const cols = [{ key: "name", label: "Building", val: (r) => r.name },
+                      { key: "district", label: "District", val: (r) => r.district || "" }]
+          .concat(MONTHS.map((m) => ({ key: "m_" + m.key, label: m.short, num: true, val: (r) => (r.m[m.key] || {}).g || 0 })))
+          .concat([{ key: "total", label: "Total", num: true, val: (r) => ga(r) }]);
+        const def = { key: "total", dir: -1 };
+        const maxG = Math.max(...all.map((r) => ga(r)), 1);
+
+        // One <td> per header column or the browser slots these into whichever
+        // columns come next, not the intended ones.
+        const pad = (n) =>
+          "<td></td>" + MONTHS.map((m) => "<td class='num'>" + cell(n.m[m.key]) + "</td>").join("") +
+          "<td class='num lead'>" + fmt(ga(n)) + "</td>";
+
+        let cur = all;
+        function render(list) {
+          cur = list;
+          const sorted = sortRows("bldgTable", list, cols, def);
+          EXPORTS.buildings = () => ({
+            name: "buildings",
+            header: ["Building", "Building ID", "District", "Active FTTH"].concat(MONTHS.map((m) => m.short)).concat(["Total " + METRIC(), "Revenue"]),
+            rows: sorted.map((r) => [r.name, r.bid || "", r.district || "", r.activeFtth == null ? "" : r.activeFtth]
+              .concat(MONTHS.map((m) => (r.m[m.key] || {}).g || 0))
+              .concat([ga(r), Math.round(sm(r.m, "r"))])),
+          });
+          let h = thead("bldgTable", cols, def) + "<tbody>";
+          sorted.forEach((r) => {
+            const g = ga(r), kids = r.breakdown && r.breakdown.length, open = expBldg.has(r.name);
+            h += "<tr class='" + (kids ? "expandable" : "") + "' data-key='" + esc(r.name) + "'>" +
+              "<td class='rowbar'><span class='fill' style='width:" + (g / maxG) * 100 + "%'></span><span class='name'>" +
+              (kids ? "<span class='tog" + (open ? " on" : "") + "'>" + (open ? "\u2212" : "+") + "</span>" : "<span style='width:15px;flex:none'></span>") +
+              "<span class='nm' style='font-weight:600'>" + esc(r.name) + "</span>" +
+              (r.bid ? "<span class='bid'>#" + esc(r.bid) + "</span>" : "") +
+              (r === topOverall ? "<span class='pill top'>TOP</span>" : "") + "</span></td>" +
+              "<td><span class='pill dist' style='background:" + districtColor(r.district) + "22;color:" + districtColor(r.district) + "'>" + esc(r.district) + "</span></td>" +
+              MONTHS.map((m) => "<td class='num'>" + cell(r.m[m.key]) + "</td>").join("") +
+              "<td class='num lead'>" + fmt(g) + "</td></tr>";
+            if (kids && open) h += bdRows(r.breakdown, r.name, [], 0, expBldg, pad);
+          });
+          const t = document.getElementById("bldgTable");
+          t.innerHTML = h + "</tbody>";
+          wireRows(t, expBldg, render, () => cur);
+        }
+        RERENDER.bldgTable = () => render(cur);
+        wireSearch("bldgSearch", "bldgCount", () => all,
+          (r, q) => r.name.toLowerCase().includes(q) || (r.district || "").toLowerCase().includes(q),
+          render, "bldgTable", 3 + MONTHS.length);
+      }
+
+      /* ── Buildings, split by day instead of by month ──────────────────────
+         Deliberately reads RAW.buildingsDaily (not DATA.*) -- this is always
+         the current/most-recent month's Connect installs, day by day, and
+         doesn't participate in the Connect/Register toggle or the month-tile
+         selector the way every other table on the page does. Same drill-down
+         mechanic (bdRows/wireRows) as renderBuildings(), just keyed by day. */
+      const expBldgDaily = new Set();
+      function gaDaily(r) {
+        let t = 0;
+        for (const k in r.m) t += r.m[k].g || 0;
+        return t;
+      }
+      function smDaily(m) {
+        let t = 0;
+        for (const k in m) t += m[k].r || 0;
+        return t;
+      }
+      function renderBuildingsDaily() {
+        const bd = RAW.buildingsDaily;
+        const singleDay = selectedDailyDay;
+        // Only days that actually happened -- the rest of the month hasn't
+        // occurred yet, so a column full of "—" for it is just noise (and
+        // widens the table for nothing). Clicking a bar in the Daily chart
+        // above pins this to just that one day instead.
+        const days = singleDay != null ? [singleDay] : Array.from({ length: bd.elapsedDays }, (_, i) => i + 1);
+        const all = singleDay != null ? bd.rows.filter((r) => (r.m[singleDay] || {}).g > 0) : bd.rows;
+        // Pinned to one day, "total" would just repeat that day's own column
+        // and a building's breakdown tree should only show that day's leaf
+        // facts, not the whole month's -- so every total/sort/drill-down
+        // figure below is day-scoped instead of summed across all of `m`.
+        const totalG = singleDay != null ? (r) => (r.m[singleDay] || {}).g || 0 : gaDaily;
+        const totalR = singleDay != null ? (m) => (m[singleDay] || {}).r || 0 : smDaily;
+        const topOverall = all.reduce((a, r) => (totalG(r) > totalG(a) ? r : a), all[0]);
+        const maxG = Math.max(...all.map((r) => totalG(r)), 1);
+        // table-layout:fixed needs an explicit floor for the unconstrained
+        // Building column or it gets squeezed toward 0 once enough day
+        // columns are showing -- see #bldgDailyTable's CSS comment. Computed
+        // here (not a fixed CSS value) since the day count varies from 1
+        // (a single picked day) up to 30 (month's end).
+        document.getElementById("bldgDailyTable").style.minWidth =
+          (280 + 132 + (days.length + 1) * 46) + "px";
+
+        document.getElementById("bldgDailySub").innerHTML = singleDay != null
+          ? fmt(all.length) + " buildings had installs on " + esc(bd.label) + " day " + singleDay +
+            ". <button type='button' class='linkbtn' id='bldgDailyClearDay'>Show every day</button> " +
+            "<strong>Click a row</strong> to drill into channel → sub-channel → territory → dealer, or a column header to re-sort."
+          : fmt(all.length) + " buildings had installs in " + esc(bd.label) +
+            (bd.partial ? " <span style='color:var(--st-warn)'>(through day " + bd.elapsedDays + "/" + bd.days + ")</span>" : "") +
+            ". <strong>Click a row</strong> to drill into channel → sub-channel → territory → dealer, or a column " +
+            "header to re-sort. <span style='color:var(--text-3)'>Tip: click a bar in Daily installs above to pin one day.</span>";
+        const clearBtn = document.getElementById("bldgDailyClearDay");
+        if (clearBtn) clearBtn.addEventListener("click", () => {
+          selectedDailyDay = null;
+          renderStack();
+          renderBuildingsDaily();
+        });
+
+        // A lone day column already IS the total, so skip appending a second,
+        // identical-looking "Total" column in single-day mode.
+        const cols = [{ key: "name", label: "Building", val: (r) => r.name },
+                      { key: "district", label: "District", val: (r) => r.district || "" }]
+          .concat(days.map((d) => ({ key: "d_" + d, label: String(d), num: true, val: (r) => (r.m[d] || {}).g || 0 })))
+          .concat(singleDay != null ? [] : [{ key: "total", label: "Total", num: true, val: (r) => totalG(r) }]);
+        const def = singleDay != null ? { key: "d_" + singleDay, dir: -1 } : { key: "total", dir: -1 };
+
+        const pad = (n) =>
+          "<td></td>" + days.map((d) => "<td class='num'>" + cell(n.m[d]) + "</td>").join("") +
+          (singleDay != null ? "" : "<td class='num lead'>" + fmt(totalG(n)) + "</td>");
+
+        let cur = all;
+        function render(list) {
+          cur = list;
+          const sorted = sortRows("bldgDailyTable", list, cols, def);
+          EXPORTS.buildingsDaily = () => ({
+            name: "buildings-daily",
+            header: ["Building", "Building ID", "District"].concat(days.map(String)).concat(["Total installs", "Revenue"]),
+            rows: sorted.map((r) => [r.name, r.bid || "", r.district || ""]
+              .concat(days.map((d) => (r.m[d] || {}).g || 0))
+              .concat([totalG(r), Math.round(totalR(r.m))])),
+          });
+          let h = thead("bldgDailyTable", cols, def) + "<tbody>";
+          sorted.forEach((r) => {
+            const g = totalG(r), kids = r.breakdown && r.breakdown.length, open = expBldgDaily.has(r.name);
+            h += "<tr class='" + (kids ? "expandable" : "") + "' data-key='" + esc(r.name) + "'>" +
+              "<td class='rowbar'><span class='fill' style='width:" + (g / maxG) * 100 + "%'></span><span class='name'>" +
+              (kids ? "<span class='tog" + (open ? " on" : "") + "'>" + (open ? "−" : "+") + "</span>" : "<span style='width:15px;flex:none'></span>") +
+              "<span class='nm' style='font-weight:600'>" + esc(r.name) + "</span>" +
+              (r.bid ? "<span class='bid'>#" + esc(r.bid) + "</span>" : "") +
+              (r === topOverall ? "<span class='pill top'>TOP</span>" : "") + "</span></td>" +
+              "<td><span class='pill dist' style='background:" + districtColor(r.district) + "22;color:" + districtColor(r.district) + "'>" + esc(r.district) + "</span></td>" +
+              days.map((d) => "<td class='num'>" + cell(r.m[d]) + "</td>").join("") +
+              (singleDay != null ? "" : "<td class='num lead'>" + fmt(g) + "</td>") + "</tr>";
+            if (kids && open) h += bdRows(r.breakdown, r.name, [], 0, expBldgDaily, pad, totalG);
+          });
+          const t = document.getElementById("bldgDailyTable");
+          t.innerHTML = h + "</tbody>";
+          wireRows(t, expBldgDaily, render, () => cur);
+        }
+        RERENDER.bldgDailyTable = () => render(cur);
+        wireSearch("bldgDailySearch", "bldgDailyCount", () => all,
+          (r, q) => r.name.toLowerCase().includes(q) || (r.district || "").toLowerCase().includes(q),
+          render, "bldgDailyTable", 3 + days.length);
+      }
+
+      function renderTerritory() {
+        const rows = DATA.dealerTerritory.map((d) => ({ name: d.name, g: ga(d), r: sm(d.m, "r") })).filter((d) => d.g > 0);
+        const outG = rows.filter((r) => r.name !== PROVINCE).reduce((a, r) => a + r.g, 0);
+        const homeG = (rows.find((r) => r.name === PROVINCE) || { g: 0 }).g;
+        document.getElementById("territorySub").innerHTML =
+          "Scope is by customer location, so this shows which <code>TDS_PROVINCE_PARTNER</code> team actually booked each " + METRIC().replace(/s$/, "") + ". <strong>" +
+          fmt(homeG) + "</strong> came from the home territory; <strong>" + fmt(outG) + "</strong> were imported from " + (rows.length - 1) + " other territories.";
+
+        const cols = [{ key: "name", label: "Dealer territory", val: (r) => r.name },
+                      { key: "g", label: METRIC_CAP(), num: true, val: (r) => r.g },
+                      { key: "r", label: "Revenue", num: true, val: (r) => r.r }];
+        const def = { key: "g", dir: -1 };
+        const maxG = Math.max(...rows.map((r) => r.g), 1);
+
+        function render(list) {
+          const sorted = sortRows("dealerTerritoryTable", list, cols, def);
+          EXPORTS.territory = () => ({
+            name: "dealer-territory",
+            header: ["Dealer territory", "Home or import", METRIC_CAP(), "Revenue"],
+            rows: sorted.map((r) => [r.name, r.name === PROVINCE ? "home" : "import", r.g, Math.round(r.r)]),
+          });
+          let h = thead("dealerTerritoryTable", cols, def) + "<tbody>";
+          sorted.forEach((r) => {
+            const isHome = r.name === PROVINCE;
+            h += "<tr><td class='rowbar'><span class='fill' style='width:" + (r.g / maxG) * 100 + "%;background:" +
+              (isHome ? "var(--accent-soft)" : "var(--line-2)") + "'></span><span class='name'><span class='nm'" +
+              (isHome ? " style='font-weight:600'" : "") + ">" + esc(r.name) + "</span>" + (isHome ? "<span class='pill home'>home</span>" : "") +
+              "</span></td><td class='num lead'>" + fmt(r.g) + "</td><td class='num'>" + money(r.r) + "</td></tr>";
+          });
+          document.getElementById("dealerTerritoryTable").innerHTML = h + "</tbody>";
+        }
+        wireSearch("territorySearch", "territoryCount", () => rows,
+          (r, q) => r.name.toLowerCase().includes(q),
+          render, "dealerTerritoryTable", 3);
+      }
+      // wireSearch's run() reads the search input's live value, so simply
+      // re-invoking the whole function on a mode/month switch naturally
+      // keeps whatever's currently typed rather than resetting the filter.
+      RERENDER.dealerTerritoryTable = () => renderTerritory();
+
+      function renderSubChannel() {
+        const keys = activeKeys();
+        // Targets pro-rate with the month, same as the headline figure.
+        const frac = {};
+        MONTHS.forEach((m) => (frac[m.key] = m.elapsedDays / m.days));
+        const rows = DATA.subChannel
+          .map((sc) => ({
+            name: sc.name, g: ga(sc), r: sm(sc.m, "r"),
+            t: sc.t ? keys.reduce((a, k) => a + (sc.t[k] || 0) * (frac[k] || 1), 0) : 0,
+          }))
+          .filter((sc) => sc.g > 0 || sc.t > 0)
+          .map((sc) => Object.assign(sc, { ach: sc.t > 0 ? sc.g / sc.t : -1 }));
+
+        const cols = [{ key: "name", label: "Sub-channel", val: (r) => r.name },
+                      { key: "g", label: METRIC_CAP(), num: true, val: (r) => r.g },
+                      { key: "t", label: "Target", num: true, val: (r) => r.t },
+                      { key: "ach", label: "Achieve", num: true, val: (r) => r.ach },
+                      { key: "r", label: "Revenue", num: true, val: (r) => r.r }];
+        const def = { key: "g", dir: -1 };
+        const sorted = sortRows("subChannelTable", rows, cols, def);
+        EXPORTS.subchannel = () => ({
+          name: "sub-channel",
+          header: ["Sub-channel", METRIC_CAP(), "Target", "Achieve %", "Revenue"],
+          rows: sorted.map((r) => [r.name, r.g, r.t > 0 ? r.t.toFixed(1) : "", r.t > 0 ? (r.ach * 100).toFixed(1) : "", Math.round(r.r)]),
+        });
+        const maxG = Math.max(...rows.map((r) => r.g), 1);
+        let h = thead("subChannelTable", cols, def) + "<tbody>";
+        // Icon alongside color (\u2713/!), same convention as the Signal insight
+        // badges above -- a color-only good/warn/crit read is lost on
+        // colorblind viewers even though the underlying number is right there.
+        const achIcon = { good: "\u2713", warn: "!", crit: "!" };
+        sorted.forEach((r) => {
+          let cls = "muted", label = "\u2014", icon = "";
+          if (r.t > 0) {
+            cls = r.ach >= 1 ? "good" : r.ach >= 0.7 ? "warn" : "crit";
+            label = pct(r.ach);
+            icon = achIcon[cls] + " ";
+          }
+          h += "<tr><td class='rowbar'><span class='fill' style='width:" + (r.g / maxG) * 100 + "%'></span><span class='name'><span class='nm'>" +
+            esc(r.name) + "</span></span></td><td class='num lead'>" + fmt(r.g) + "</td><td class='num'>" + (r.t > 0 ? fmt1(r.t) : "\u2014") +
+            "</td><td class='num'><span class='pill " + cls + "'>" + icon + label + "</span></td><td class='num'>" + money(r.r) + "</td></tr>";
+        });
+        document.getElementById("subChannelTable").innerHTML = h + "</tbody>";
+      }
+      RERENDER.subChannelTable = () => renderSubChannel();
+
+      function renderDealers() {
+        const rows = DATA.supervisor.map((d) => ({ name: d.name, g: ga(d), r: sm(d.m, "r") })).filter((d) => d.g > 0);
+        const cols = [{ key: "name", label: "Dealer / supervisor", val: (r) => r.name },
+                      { key: "g", label: METRIC_CAP(), num: true, val: (r) => r.g },
+                      { key: "r", label: "Revenue", num: true, val: (r) => r.r }];
+        const def = { key: "g", dir: -1 };
+        const sorted = sortRows("dealerTable", rows, cols, def).slice(0, 12);
+        EXPORTS.dealers = () => ({
+          name: "dealers",
+          header: ["Dealer / supervisor", METRIC_CAP(), "Revenue"],
+          rows: sortRows("dealerTable", rows, cols, def).map((r) => [r.name, r.g, Math.round(r.r)]),
+        });
+        const maxG = Math.max(...sorted.map((r) => r.g), 1);
+        let h = thead("dealerTable", cols, def) + "<tbody>";
+        sorted.forEach((r) => {
+          h += "<tr><td class='rowbar'><span class='fill' style='width:" + (r.g / maxG) * 100 + "%'></span><span class='name'><span class='nm'>" +
+            esc(r.name) + "</span></span></td><td class='num lead'>" + fmt(r.g) + "</td><td class='num'>" + money(r.r) + "</td></tr>";
+        });
+        document.getElementById("dealerTable").innerHTML = h + "</tbody>";
+      }
+      RERENDER.dealerTable = () => renderDealers();
+
+      /* ── territory map ──────────────────────────────────────────────────
+         Only "matched" buildings (name found in the FTTH census) carry
+         coordinates -- bbOnly buildings have nowhere to plot, so this map
+         is necessarily a subset of what the Buildings table shows, not the
+         full list. Reuses ga()/sm() so it respects the same month-tile and
+         Connect/Register selection as everything else on the page. */
+      // Real administrative district boundaries for ปากเกร็ด/บางบัวทอง/ไทรน้อย --
+      // not derived from install locations, so the map's shape is geographically
+      // authoritative even where this cluster has zero installs right now. Copied
+      // from Route Planner's own copy (same source: UN OCHA / Royal Thai Survey
+      // Department COD-AB Thailand dataset, data.humdata.org/dataset/cod-ab-tha --
+      // public government data, not sensitive, safe to duplicate rather than share
+      // a runtime dependency between two otherwise-independent projects).
+      const DISTRICT_BOUNDARIES = {
+        บางบัวทอง: {
+          type: "Polygon",
+          coordinates: [
+            [
+              [100.44910048300011, 13.891590915000052],
+              [100.44948930900011, 13.884201825000105],
+              [100.44731361000015, 13.88251838900004],
+              [100.44899662900019, 13.87919167500013],
+              [100.44810378700004, 13.875339367000095],
+              [100.44904600300003, 13.874381648000167],
+              [100.44823238300006, 13.871958449000147],
+              [100.44912367400013, 13.871630066000023],
+              [100.44833689900014, 13.870640465000122],
+              [100.45042627200013, 13.868232178000085],
+              [100.44792779800014, 13.867365125000049],
+              [100.44508763500005, 13.871046695000189],
+              [100.43889677700014, 13.871836332000044],
+              [100.43280380000004, 13.869047094],
+              [100.42870252200015, 13.86301818700008],
+              [100.42277453100007, 13.866456010000036],
+              [100.42281061000011, 13.86851200000018],
+              [100.41910471500017, 13.869218943000135],
+              [100.42028884800015, 13.87024433200014],
+              [100.42013749800009, 13.871801568000024],
+              [100.42131271600016, 13.87194209300003],
+              [100.42115587500007, 13.872959392000098],
+              [100.41929180900019, 13.87335731200011],
+              [100.41864509100014, 13.876232004000144],
+              [100.41970805500017, 13.8769671],
+              [100.41235844600004, 13.879524435000121],
+              [100.41227722200006, 13.880825989000186],
+              [100.4102961480001, 13.882154712000101],
+              [100.40599774900016, 13.883059644000184],
+              [100.40484685400003, 13.884317022000118],
+              [100.3972258280001, 13.887462827000093],
+              [100.39647403900017, 13.889358092000123],
+              [100.39704704700011, 13.891174613000032],
+              [100.3941506910001, 13.89322971700011],
+              [100.38938412800019, 13.89535583900016],
+              [100.37714886600014, 13.897841183000082],
+              [100.37428525600018, 13.902990408999983],
+              [100.37324671600004, 13.911290256000086],
+              [100.37194322600004, 13.911599960000103],
+              [100.36922835900003, 13.911484285000029],
+              [100.36879631800008, 13.906866661000095],
+              [100.3636342370001, 13.889934117999985],
+              [100.36413702600004, 13.882491199000128],
+              [100.36199166100005, 13.878713196999968],
+              [100.35733207300018, 13.878599336000093],
+              [100.35520945900004, 13.882356221000123],
+              [100.3417628900001, 13.883369329000118],
+              [100.3414109270002, 13.889987387000076],
+              [100.33268840500006, 13.911881863000076],
+              [100.3305507450001, 13.921530104000169],
+              [100.34101133500019, 13.930645387000027],
+              [100.35623821600018, 13.949894720000145],
+              [100.35000773700006, 13.95387480100004],
+              [100.35497645600003, 13.96193755400003],
+              [100.35605212100018, 13.975217263000047],
+              [100.35537581900013, 13.984950114000014],
+              [100.34964639500004, 13.996636058999968],
+              [100.35612955400006, 14.000763684000162],
+              [100.36133115900014, 13.994314597000084],
+              [100.36523922200013, 13.992047828000068],
+              [100.39462669800014, 13.985804759000132],
+              [100.39863847400011, 13.983371719000104],
+              [100.40324107500015, 13.98314619700011],
+              [100.40907743000014, 13.985235969000144],
+              [100.41407528100007, 13.984563912000056],
+              [100.41944425899999, 13.98104008100006],
+              [100.41996202400014, 13.9787782840001],
+              [100.42272967400015, 13.97740630300018],
+              [100.42684605500011, 13.973088010000026],
+              [100.42844957300014, 13.969863807000138],
+              [100.43068803000011, 13.968900689],
+              [100.43565660700011, 13.963691019000066],
+              [100.43797072900009, 13.959425353000086],
+              [100.44593706400008, 13.952121011000088],
+              [100.44580787400008, 13.951297858000089],
+              [100.45076997000012, 13.94820221000009],
+              [100.44203543300011, 13.932043988000032],
+              [100.44431230800012, 13.930906393000157],
+              [100.44158654900014, 13.924625670000182],
+              [100.44132454200019, 13.920603310000047],
+              [100.44584417500016, 13.919935206000048],
+              [100.43934527400006, 13.899410289000059],
+              [100.4442358010001, 13.897845653000104],
+              [100.44785001000008, 13.897937541999966],
+              [100.44910048300011, 13.891590915000052],
+            ],
+          ],
+        },
+        ไทรน้อย: {
+          type: "Polygon",
+          coordinates: [
+            [
+              [100.33102436300004, 13.918466175000049],
+              [100.33462277400014, 13.906293436000169],
+              [100.3414109270002, 13.889987387000076],
+              [100.3417628900001, 13.883369329000118],
+              [100.33506287700004, 13.883122782000044],
+              [100.33501711600007, 13.881431098000064],
+              [100.33104012500013, 13.881548259000112],
+              [100.32793931700007, 13.882434476000128],
+              [100.32668260600008, 13.88565129],
+              [100.32214279400017, 13.884761725000033],
+              [100.3223988690001, 13.877365664000138],
+              [100.31138765700013, 13.87639631900015],
+              [100.30198478100016, 13.878833849000046],
+              [100.29964266400009, 13.871904782000058],
+              [100.29681910800008, 13.869552457000168],
+              [100.27612257700014, 13.912939906000133],
+              [100.27328461100012, 13.915901944999973],
+              [100.26544878200008, 13.920607142],
+              [100.27309634300019, 13.932925326000145],
+              [100.28626218, 13.946299378000049],
+              [100.29821991900008, 13.963371049000102],
+              [100.28626141900003, 13.97135897100003],
+              [100.27500920200009, 13.981863929000042],
+              [100.27039378600017, 13.987582628999974],
+              [100.26773482700014, 13.993965448999973],
+              [100.26242900800014, 13.99812071100007],
+              [100.26558179900019, 14.001208043000076],
+              [100.26328989400014, 14.004354847000059],
+              [100.26650495300015, 14.007957476000115],
+              [100.2640663210002, 14.010168096000086],
+              [100.26912364500015, 14.018907233999983],
+              [100.26969787000013, 14.023421993000056],
+              [100.27695656100019, 14.024089279000066],
+              [100.26894857600013, 14.036544455000126],
+              [100.26416128900007, 14.060159499000065],
+              [100.27228966500007, 14.068161779000093],
+              [100.27196986600018, 14.072297068000069],
+              [100.27395141000017, 14.073843558000135],
+              [100.27597274300018, 14.079559906000043],
+              [100.27710665600011, 14.101211371000147],
+              [100.28372984300017, 14.100698103000127],
+              [100.28178118400018, 14.127013465000175],
+              [100.29606270400018, 14.139312669000162],
+              [100.29815951600011, 14.140205876000039],
+              [100.3011002630002, 14.139799175000064],
+              [100.32084020400004, 14.129635987000086],
+              [100.33314749200014, 14.12893164000019],
+              [100.34049259000017, 14.12140077100014],
+              [100.34410206200005, 14.114787454000123],
+              [100.34066084600005, 14.093835017000174],
+              [100.33498712200009, 14.078261528999974],
+              [100.33241190500007, 14.066887020000081],
+              [100.33162925699997, 14.056427260000078],
+              [100.33667731000014, 14.037664127000028],
+              [100.34427547100006, 14.02090803599998],
+              [100.35576105900003, 14.000445546000151],
+              [100.34964639500004, 13.996636058999968],
+              [100.35537581900013, 13.984950114000014],
+              [100.35605212100018, 13.975217263000047],
+              [100.35497645600003, 13.96193755400003],
+              [100.35000773700006, 13.95387480100004],
+              [100.35623821600018, 13.949894720000145],
+              [100.34101133500019, 13.930645387000027],
+              [100.3305507450001, 13.921530104000169],
+              [100.33102436300004, 13.918466175000049],
+            ],
+          ],
+        },
+        ปากเกร็ด: {
+          type: "Polygon",
+          coordinates: [
+            [
+              [100.49037630300006, 13.894244293000042],
+              [100.48468860300017, 13.885474996000028],
+              [100.4799244300001, 13.88825909700006],
+              [100.47701205700008, 13.891441918000055],
+              [100.47434590199998, 13.892160136000143],
+              [100.47120518700012, 13.891541761000042],
+              [100.466272571, 13.892870667000068],
+              [100.46308148200006, 13.892608074000066],
+              [100.45870131400017, 13.890303956000025],
+              [100.44963300400019, 13.889118015000065],
+              [100.44785001000008, 13.897937541999966],
+              [100.4442358010001, 13.897845653000104],
+              [100.43934527400006, 13.899410289000059],
+              [100.44584417500016, 13.919935206000048],
+              [100.44132454200019, 13.920603310000047],
+              [100.44158654900014, 13.924625670000182],
+              [100.44431230800012, 13.930906393000157],
+              [100.44203543300011, 13.932043988000032],
+              [100.45076997000012, 13.94820221000009],
+              [100.44580787400008, 13.951297858000089],
+              [100.44593706400008, 13.952121011000088],
+              [100.43797072900009, 13.959425353000086],
+              [100.43566784600006, 13.963678732000062],
+              [100.43068803000011, 13.968900689],
+              [100.42846148100006, 13.969850987000143],
+              [100.42701694700008, 13.972900136000078],
+              [100.42272967400015, 13.97740630300018],
+              [100.41998628300007, 13.97875292600014],
+              [100.4196171270001, 13.980832937000173],
+              [100.41676133400017, 13.983226147000153],
+              [100.40964613500006, 13.98523808200008],
+              [100.40324107500015, 13.98314619700011],
+              [100.39863847400011, 13.983371719000104],
+              [100.39466185100014, 13.98579474000013],
+              [100.38049918000007, 13.988812153000083],
+              [100.38108060700011, 13.994775593000043],
+              [100.43478932400018, 13.981151313000055],
+              [100.45347629700012, 13.967342546000168],
+              [100.45661667200017, 13.97082388300015],
+              [100.45680198500014, 13.974939482000082],
+              [100.45792789500007, 13.977517345000138],
+              [100.45839197400016, 13.97626896000014],
+              [100.4606124840002, 13.976448684000047],
+              [100.46241655100016, 13.970694653000123],
+              [100.4648833290002, 13.971420494000029],
+              [100.46548102400016, 13.970293370000036],
+              [100.4669445720001, 13.970493063000163],
+              [100.46693108900013, 13.968707405000032],
+              [100.48623542500007, 13.95012755600004],
+              [100.48859645900006, 13.946083016999978],
+              [100.48744699500014, 13.944844191000186],
+              [100.48912565600006, 13.942675390000034],
+              [100.49144561900005, 13.940900820000138],
+              [100.49785022100008, 13.939074628000185],
+              [100.50018543500005, 13.936982177000175],
+              [100.50178209800009, 13.936718788000121],
+              [100.50457148500004, 13.940604276999977],
+              [100.50964805600006, 13.94343515300011],
+              [100.525787902, 13.943629395000187],
+              [100.53152072000006, 13.945224031000123],
+              [100.53706331000018, 13.949890756000173],
+              [100.53902738900007, 13.955698917000177],
+              [100.54204516400006, 13.955478970000172],
+              [100.54140587100005, 13.95463304599997],
+              [100.54202058400017, 13.953578428000128],
+              [100.54404924800019, 13.954413181000177],
+              [100.54452506600012, 13.952933847000168],
+              [100.55333780900014, 13.951387718000035],
+              [100.55417665300013, 13.95037965900002],
+              [100.55482076100014, 13.951562705000072],
+              [100.55711072200012, 13.949833012],
+              [100.56007828600019, 13.950674485000093],
+              [100.56161613700016, 13.949380860000076],
+              [100.56754835800007, 13.951203277000161],
+              [100.5502851820001, 13.877585603000114],
+              [100.54879741400009, 13.877885983000112],
+              [100.54651377400018, 13.880279493000103],
+              [100.50523248900004, 13.89131874700007],
+              [100.50087814300014, 13.894271335000155],
+              [100.49730918400019, 13.895168957000124],
+              [100.49037630300006, 13.894244293000042],
+            ],
+          ],
+        },
+      };
+
+      let TERRITORY_MAP = null;
+      let mapMarkerLayer = null;
+      function importPct(r) {
+        const g = ga(r);
+        return g > 0 ? sm(r.mi, "g") / g : 0;
+      }
+      function importColor(pct) {
+        return pct >= 0.5 ? "var(--st-crit)" : pct >= 0.2 ? "var(--st-warn)" : "var(--st-good)";
+      }
+      // Raw import volume, not share -- a building at 100% import but only 1
+      // install matters far less than one at 20% import out of 200, so the
+      // list ranks by this instead of importPct().
+      function importAmt(r) {
+        return sm(r.mi, "g");
+      }
+      // Sums installs by outside territory across every channel/sub-channel
+      // branch of one building's drill-down tree, so the map popup can name
+      // which dealer territory is actually capturing the import volume.
+      function importByTerritory(r) {
+        const totals = {};
+        (r.breakdown || []).forEach((channelNode) =>
+          (channelNode.children || []).forEach((specialNode) =>
+            (specialNode.children || []).forEach((territoryNode) => {
+              if (territoryNode.name === PROVINCE) return;
+              totals[territoryNode.name] = (totals[territoryNode.name] || 0) + ga(territoryNode);
+            })
+          )
+        );
+        return totals;
+      }
+      // divIcon fills need a real, resolved color -- an unresolved
+      // "var(--x)" string works by luck under SVG rendering but silently
+      // fails under Leaflet's Canvas renderer or in a plain inline
+      // style on a divIcon, so resolve it explicitly everywhere instead of
+      // depending on which rendering path happens to tolerate it.
+      const resolveColor = (varExpr) =>
+        getComputedStyle(document.documentElement).getPropertyValue(varExpr.slice(4, -1).trim()).trim();
+
+      // Populated with EVERY plottable building by default -- like Route
+      // Planner's #storeList, the sidebar always shows something useful
+      // rather than sitting empty until you click the map first. Clicking a
+      // cluster or a single marker narrows it; "Show all" (rendered only
+      // when narrowed) gets back here.
+      let mapAllRows = [];
+      function renderBuildingList(rows, title, isFiltered) {
+        const el = document.getElementById("mapList");
+        if (!rows.length) {
+          el.innerHTML = "<div class='map-list-empty'>No buildings here.</div>";
+          return;
+        }
+        const sorted = rows.slice().sort((a, b) => importAmt(b) - importAmt(a) || ga(b) - ga(a));
+        el.innerHTML =
+          "<div class='map-list-head'>" + esc(title) +
+          (isFiltered ? " <button type='button' class='linkbtn' id='mapListClear'>Show all</button>" : "") +
+          "</div>" +
+          sorted.map((r) => {
+            const impPct = importPct(r), impG = importAmt(r);
+            return "<div class='map-list-row'><div class='nm'>" + esc(r.name) + "</div>" +
+              "<div class='meta'><span>" + esc(r.district || "—") + " · " + fmt(ga(r)) + " " + METRIC() + "</span>" +
+              "<span style='color:" + importColor(impPct) + ";font-weight:600'>" + fmt(impG) + " import (" + pct(impPct) + ")</span></div>" +
+              "</div>";
+          }).join("");
+        el.querySelectorAll(".map-list-row").forEach((rowEl, i) => {
+          rowEl.addEventListener("click", () => {
+            const r = sorted[i];
+            TERRITORY_MAP.setView([r.lat, r.lng], 17, { animate: true });
+            const marker = mapMarkersByName[r.name];
+            if (marker) marker.openPopup();
+          });
+        });
+        const clearBtn = document.getElementById("mapListClear");
+        if (clearBtn) clearBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          renderBuildingList(mapAllRows, fmt(mapAllRows.length) + " buildings", false);
+        });
+      }
+
+      /* Real อำเภอ outlines (not derived from install locations), shaded with
+         this app's own districtColor() so they read as the same district
+         everywhere else on the page uses that color -- Buildings table pills,
+         "By district" bars, movers, all of it. */
+      let districtAreaLayer = null;
+      function renderDistrictAreas() {
+        districtAreaLayer.clearLayers();
+        Object.keys(DISTRICT_BOUNDARIES).forEach((name) => {
+          const color = districtColor(name);
+          L.geoJSON(
+            { type: "Feature", geometry: DISTRICT_BOUNDARIES[name], properties: {} },
+            { style: () => ({ color, weight: 3, dashArray: "8 6", fillColor: color, fillOpacity: 0.07, opacity: 0.95 }) }
+          )
+            .bindTooltip(name, { sticky: true })
+            .addTo(districtAreaLayer);
+        });
+      }
+      function districtBoundsAll() {
+        let bounds = null;
+        Object.keys(DISTRICT_BOUNDARIES).forEach((name) => {
+          const b = L.geoJSON({ type: "Feature", geometry: DISTRICT_BOUNDARIES[name], properties: {} }).getBounds();
+          bounds = bounds ? bounds.extend(b) : b;
+        });
+        return bounds;
+      }
+
+      let mapMarkersByName = {};
+      function renderMap() {
+        const rows = DATA.villages.matched.filter((r) => r.lat != null && ga(r) > 0);
+        document.getElementById("mapSub").innerHTML =
+          fmt(rows.length) + " buildings with a census location. Each pin shows that building's installs, colored by import share. " +
+          "<span style='color:var(--text-3)'>Buildings without an exact village-name match in the FTTH census can't be plotted.</span>";
+
+        if (!TERRITORY_MAP) {
+          TERRITORY_MAP = L.map("territoryMap", { zoomControl: true, scrollWheelZoom: true, preferCanvas: true });
+          L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            maxZoom: 19,
+            attribution: "&copy; OpenStreetMap contributors",
+          }).addTo(TERRITORY_MAP);
+          districtAreaLayer = L.layerGroup().addTo(TERRITORY_MAP);
+          renderDistrictAreas();
+          // Zoom to the cluster itself (Pak Kret/Bang Bua Thong/Sai Noi) on
+          // first load, not wherever the current month's installs happen to
+          // be -- the district boundaries are the ground truth for "this
+          // territory," installs are just this month's activity within it.
+          TERRITORY_MAP.fitBounds(districtBoundsAll().pad(0.05));
+          // No clustering: every pin is one real building showing its own
+          // exact install count, like Route Planner's individual store pins
+          // (which handle hundreds of markers fine the same way). A dense
+          // "concentrated area" just means pins sitting close together --
+          // scroll/pinch to zoom in and they separate on their own.
+          mapMarkerLayer = L.layerGroup().addTo(TERRITORY_MAP);
+          new ResizeObserver(() => TERRITORY_MAP.invalidateSize()).observe(document.getElementById("territoryMap"));
+        }
+        mapMarkerLayer.clearLayers();
+        mapMarkersByName = {};
+
+        // resolveColor() forces a synchronous style recalc (getComputedStyle)
+        // -- fine once, but calling it fresh for every one of ~260 buildings
+        // interleaved with the DOM inserts below (one new marker per row)
+        // turns into textbook layout thrashing: read, write, read, write...
+        // Only 3 distinct colors ever come out of importColor(), so resolve
+        // each exactly once here and let the loop just look them up.
+        const colorCache = {};
+        const resolveColorCached = (varExpr) => colorCache[varExpr] || (colorCache[varExpr] = resolveColor(varExpr));
+
+        const maxG = Math.max(...rows.map((r) => ga(r)), 1);
+        rows.forEach((r) => {
+          const g = ga(r), impG = importAmt(r), impPct = importPct(r), col = resolveColorCached(importColor(impPct));
+          const size = Math.max(22, Math.min(46, Math.round(20 + Math.sqrt(g / maxG) * 26)));
+          const marker = L.marker([r.lat, r.lng], {
+            icon: L.divIcon({
+              html: "<div class='building-pin' style='width:" + size + "px;height:" + size + "px;background:" + col +
+                "'><span style='font-size:" + Math.max(9, Math.round(size * 0.32)) + "px'>" + fmt(g) + "</span></div>",
+              className: "",
+              iconSize: [size, size],
+              iconAnchor: [size / 2, size],
+              popupAnchor: [0, -size],
+            }),
+          });
+          marker.buildingRow = r;
+          const terr = Object.entries(importByTerritory(r)).sort((a, b) => b[1] - a[1])[0];
+          marker.bindPopup(
+            "<div class='map-pop'><div class='nm'>" + esc(r.name) + "</div>" +
+            "<div class='row'><span>District</span><span class='v'>" + esc(r.district || "—") + "</span></div>" +
+            "<div class='row'><span>" + METRIC_CAP() + "</span><span class='v'>" + fmt(g) + "</span></div>" +
+            "<div class='row'><span>Import</span><span class='v' style='color:" + col + "'>" +
+            fmt(impG) + " (" + pct(impPct) + ")</span></div>" +
+            (terr ? "<div class='row'><span>Top outside territory</span><span class='v'>" + esc(terr[0]) + "</span></div>" : "")
+            + "</div>"
+          );
+          marker.on("click", () => renderBuildingList([r], r.name, true));
+          marker.addTo(mapMarkerLayer);
+          mapMarkersByName[r.name] = marker;
+        });
+
+        // Populated by default, same idea as Route Planner's store list --
+        // something useful to look at immediately, not an empty panel
+        // waiting for a click on the map first.
+        mapAllRows = rows;
+        renderBuildingList(rows, fmt(rows.length) + " buildings", false);
+      }
+      // No RERENDER entry for the map: unlike the sortable tables that
+      // mechanism serves, it's not visible by default, and applyView()
+      // below already calls renderMap() fresh every time the Map tab is
+      // opened -- a MODE/month change made while on the Dashboard tab is
+      // naturally picked up next time the viewer switches to Map.
+
+      /* ── Dashboard / Map view toggle ───────────────────────────────────── */
+      let VIEW = "dashboard";
+      function applyView(view) {
+        VIEW = view;
+        document.getElementById("dashboardView").hidden = view !== "dashboard";
+        document.getElementById("mapView").hidden = view !== "map";
+        document.querySelectorAll("#viewToggle button").forEach((o) => o.classList.toggle("active", o.dataset.view === view));
+        if (view === "map") {
+          // The map was initialized (if at all) while its container was
+          // hidden (0 width/height) if the viewer never switched to this
+          // tab before -- Leaflet needs an explicit nudge once it's
+          // actually visible, or tiles render into the wrong-sized box.
+          renderMap();
+          requestAnimationFrame(() => TERRITORY_MAP && TERRITORY_MAP.invalidateSize());
+        }
+      }
+      document.querySelectorAll("#viewToggle button").forEach((b) =>
+        b.addEventListener("click", () => applyView(b.dataset.view))
+      );
+
+      /* ── render everything for the current selection ───────────────────── */
+      function renderAll() {
+        renderHero();
+        renderTiles();
+        renderInsights();
+        renderDistrict();
+        renderChannel();
+        renderStack();
+        renderMovers();
+        renderTech();
+        renderFtthTiles();
+        renderBuildings();
+        renderBuildingsDaily();
+        renderTerritory();
+        renderSubChannel();
+        renderDealers();
+        // renderMap() is deliberately NOT called here -- it's a hidden tab
+        // until the viewer clicks it (see applyView below), so building 260
+        // markers + initializing Leaflet on every page load would be pure
+        // waste for anyone who never opens the Map tab this session.
+      }
+      renderAll();
+
+      /* Every .table-scroll div is static in the page HTML (only the
+         <table> inside gets its innerHTML replaced on re-render), so this
+         only needs to run once -- ResizeObserver picks up later width
+         changes on its own (e.g. bldgDailyTable's min-width changing when a
+         day gets pinned, or the window resizing). */
+      (function wireScrollShadows() {
+        const update = (el) => {
+          el.classList.toggle("can-scroll-l", el.scrollLeft > 2);
+          el.classList.toggle("can-scroll-r", el.scrollLeft < el.scrollWidth - el.clientWidth - 2);
+        };
+        document.querySelectorAll(".table-scroll").forEach((el) => {
+          update(el);
+          el.addEventListener("scroll", () => update(el), { passive: true });
+          const ro = new ResizeObserver(() => update(el));
+          ro.observe(el);
+          const table = el.querySelector("table");
+          if (table) ro.observe(table);
+        });
+      })();
+    </script>
+  </body>
+</html>

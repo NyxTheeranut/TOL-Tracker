@@ -25,7 +25,7 @@ local "BB Current Month Tracker.html" does from its embedded copy
 ```
 
 `sync/update_bb_sheet.py` is a separate, local-only tool -- it re-runs the
-same aggregation as `TOL/aggregate_bb.py` (importing `build_output()`
+same aggregation as `sync/aggregate_bb.py` (importing `build_output()`
 directly, so the two never compute installs/registrations differently) and
 pushes the result into the Sheet. It's never called from the hosted page.
 
@@ -40,7 +40,7 @@ sync/              local sync tool (update_bb_sheet.py, sheet_schema.py)
 ```
 
 `sync/update_bb_sheet.py` reaches outside this repo to the Dashboard folder's
-shared `TOL/aggregate_bb.py` and `Config/bb_sync_secret.txt` -- see the next
+shared `sync/aggregate_bb.py` and `Config/bb_sync_secret.txt` -- see the next
 section.
 
 Unlike L2 Discount Map's data (flat rows -- one per splitter), this
@@ -131,7 +131,7 @@ python3 sync/update_bb_sheet.py
 
 (or double-click `Update TOL Tracker.command` in the Dashboard folder's
 `Launchers/`) to populate the "Data" tab. Re-run it any time a fresh
-`TOL_*.txt` / `BB_CURRENT_MTH.txt` export lands in `TOL/Data/` -- same
+`TOL_*.txt` / `BB_CURRENT_MTH.txt` export lands in `Data/` -- same
 trigger as re-running `aggregate_bb.py` for the local version.
 
 ### 6. Deploy to GitHub Pages
@@ -149,11 +149,11 @@ and `file://` isn't one you can add.
 
 ## Relationship to the local version
 
-`TOL/aggregate_bb.py` and "BB Current Month Tracker.html" still work exactly
+`sync/aggregate_bb.py` and "BB Current Month Tracker.html" still work exactly
 as before -- opening that file locally needs no sign-in, no internet, no
 Sheet. This project is an alternative distribution of the same numbers for
 sharing with people who shouldn't need file access to your machine, not a
-replacement. Both read from the same `TOL/Data/` exports and the same
+replacement. Both read from the same `Data/` exports and the same
 aggregation code (`aggregate_bb.py`'s `build_output()`), so they never
 disagree.
 

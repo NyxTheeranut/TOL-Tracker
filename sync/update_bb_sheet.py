@@ -7,7 +7,7 @@ in Sheets, matching PakKret Territory Explorer / Route Planner -- so the
 hosted page never needs a local rebuild, just this sync.
 
 Run this any time a fresh TOL_*.txt / BB_CURRENT_MTH.txt export lands in
-TOL/Data/ -- same trigger as running aggregate_bb.py locally, just pushed to
+Data/ -- same trigger as running aggregate_bb.py locally, just pushed to
 the Sheet instead of (or as well as) written to a local HTML file.
 
 This reuses aggregate_bb.py's build_output() directly -- the exact same
@@ -21,7 +21,7 @@ sheet_schema.reconstruct(), which this repo's own test proves lossless
 against real data).
 
 ── Why this fetches before it writes ────────────────────────────────────────
-Raw TOL_*.txt exports live only in TOL/Data/ on this one machine -- never
+Raw TOL_*.txt exports live only in Data/ on this one machine -- never
 committed anywhere, never backed up elsewhere. If that folder ever has fewer
 months than usual (a fresh machine, an accidentally-cleared folder, a laptop
 swap), a naive "aggregate whatever's here and overwrite the Sheet" sync would
@@ -46,7 +46,6 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 REPO_DIR = HERE.parent  # this script lives in sync/
 DASHBOARD_DIR = REPO_DIR.parent
-sys.path.insert(0, str(DASHBOARD_DIR / "TOL"))
 import aggregate_bb  # noqa: E402  (path must be set up first)
 import sheet_schema  # noqa: E402
 

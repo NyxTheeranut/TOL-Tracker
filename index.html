@@ -1731,7 +1731,7 @@
             + "numerator only and push vs-target past 100%.</p>" +
             "<p><strong>Sources.</strong> " + MONTHS.map((m) => "<code>" + esc(m.file) + "</code> (" + m.label + ")").join(", ") +
             ". Months are discovered from the folder automatically and their month read from the data itself, so adding one " +
-            "means dropping the export into <code>TOL/</code> and re-running <code>python3 TOL/aggregate_bb.py</code> — no code " +
+            "means dropping the export into <code>TOL Tracker/Data/</code> and re-running <code>python3 "TOL Tracker/sync/aggregate_bb.py"</code> — no code " +
             "edit. The schema drifts between months (June carries 130 columns and CRLF line endings against 134 and LF later), " +
             "so every field is read by column name, never position.</p>" +
             "<p><strong>Scope.</strong> Filtered on <code>TDS_PROVINCE_CUST</code> — where the customer actually is — not the " +

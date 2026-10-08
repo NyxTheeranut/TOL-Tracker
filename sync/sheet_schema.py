@@ -529,7 +529,7 @@ def reconstruct(tabs):
 
 # ── merge_months ─────────────────────────────────────────────────────────────
 # The Sheet is the only durable copy of history beyond MAX_MONTHS ago (raw
-# TOL_*.txt exports live only on the one local machine, in TOL/Data/, never
+# TOL_*.txt exports live only on the one local machine, in Data/, never
 # committed anywhere). A naive "flatten local build_output() and overwrite"
 # sync would silently DELETE history whenever the local Data/ folder happens
 # to have fewer months than usual (a fresh machine, an accidentally-cleared
