@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&family=IBM+Plex+Sans+Thai:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -115,17 +115,17 @@
       body {
         background: var(--page);
         color: var(--ink);
-        font-family: "Inter", system-ui, -apple-system, sans-serif;
+        font-family: "Geist", system-ui, -apple-system, sans-serif;
         -webkit-font-smoothing: antialiased;
         font-size: 13px;
         line-height: 1.5;
       }
-      h1, h2, h3 { font-family: "Space Grotesk", system-ui, sans-serif; margin: 0; letter-spacing: -0.015em; }
-      .mono, .num { font-family: "IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+      h1, h2, h3 { font-family: "Geist", system-ui, sans-serif; margin: 0; letter-spacing: -0.015em; }
+      .mono, .num { font-family: "Geist Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
       button { font-family: inherit; cursor: pointer; }
       :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
       code {
-        font-family: "IBM Plex Mono", monospace;
+        font-family: "Geist Mono", monospace;
         font-size: 0.92em;
         background: var(--panel-2);
         border: 1px solid var(--line);
@@ -159,7 +159,7 @@
       .brand h1 { font-size: 16px; font-weight: 600; color: var(--topbar-fg); }
       .brand .sub {
         font-size: 11px; margin-top: 1px; color: rgba(255, 255, 255, 0.5);
-        font-family: "IBM Plex Mono", monospace; letter-spacing: -0.01em;
+        font-family: "Geist Mono", monospace; letter-spacing: -0.01em;
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       }
       .topbar-right { grid-column: 3; grid-row: 1; display: flex; align-items: center; gap: 14px; justify-self: end; }
@@ -177,7 +177,7 @@
       }
       .section-nav a:hover { background: rgba(255, 255, 255, 0.16); color: #fff; }
       .topbar .meta {
-        font-family: "IBM Plex Mono", monospace; font-size: 11px;
+        font-family: "Geist Mono", monospace; font-size: 11px;
         color: rgba(255, 255, 255, 0.62); text-align: right; line-height: 1.45;
       }
       .theme-btn {
@@ -198,7 +198,7 @@
       .section:first-of-type { margin-top: 0; }
       .section-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
       .section-head .eyebrow {
-        font-family: "IBM Plex Mono", monospace; font-size: 10.5px; font-weight: 600;
+        font-family: "Geist Mono", monospace; font-size: 10.5px; font-weight: 600;
         letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-ink);
         background: var(--accent-soft); padding: 3px 8px; border-radius: 5px; flex: none;
       }
@@ -240,7 +240,7 @@
       }
       .map-legend span { display: inline-flex; align-items: center; gap: 6px; }
       .map-legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
-      .map-pop { font-family: "Inter", sans-serif; font-size: 12.5px; min-width: 180px; }
+      .map-pop { font-family: "Geist", sans-serif; font-size: 12.5px; min-width: 180px; }
       .map-pop .nm { font-weight: 600; font-size: 13.5px; margin-bottom: 3px; }
       .map-pop .row { display: flex; justify-content: space-between; gap: 10px; margin-top: 3px; }
       .map-pop .row .v { font-weight: 600; }
@@ -251,7 +251,7 @@
       .building-pin {
         border-radius: 50% 50% 50% 0; transform: rotate(-45deg); display: flex;
         align-items: center; justify-content: center;
-        color: #fff; font-weight: 700; font-family: "IBM Plex Mono", monospace;
+        color: #fff; font-weight: 700; font-family: "Geist Mono", monospace;
         border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.35);
       }
       .building-pin span { transform: rotate(45deg); }
@@ -273,10 +273,10 @@
       .hero-figure { flex: none; min-width: 168px; }
       .hero-label {
         font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase;
-        color: var(--text-3); font-family: "IBM Plex Mono", monospace;
+        color: var(--text-3); font-family: "Geist Mono", monospace;
       }
       .hero-value {
-        font-family: "Space Grotesk", sans-serif; font-size: 46px; font-weight: 700;
+        font-family: "Geist", sans-serif; font-size: 46px; font-weight: 700;
         line-height: 1.02; letter-spacing: -0.03em; margin-top: 6px;
       }
       .hero-note { font-size: 12.5px; color: var(--text-2); margin-top: 7px; }
@@ -293,7 +293,7 @@
       .meter-fill { height: 100%; border-radius: 99px; }
       .meter-legend {
         display: flex; justify-content: space-between; gap: 10px; margin-top: 7px;
-        font-size: 11.5px; color: var(--text-2); font-family: "IBM Plex Mono", monospace;
+        font-size: 11.5px; color: var(--text-2); font-family: "Geist Mono", monospace;
         flex-wrap: wrap;
       }
       .meter-legend > span:last-child { white-space: nowrap; }
@@ -306,10 +306,10 @@
       }
       .tile .label {
         font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
-        color: var(--text-3); font-family: "IBM Plex Mono", monospace;
+        color: var(--text-3); font-family: "Geist Mono", monospace;
       }
       .tile .value {
-        font-family: "Space Grotesk", sans-serif; font-size: 25px; font-weight: 700;
+        font-family: "Geist", sans-serif; font-size: 25px; font-weight: 700;
         line-height: 1.12; letter-spacing: -0.02em; margin-top: 7px;
       }
       .tile .sub { font-size: 11.5px; color: var(--text-2); margin-top: 5px; line-height: 1.45; }
@@ -334,7 +334,7 @@
       details.notes[open] > summary::after { content: "▾"; }
       details.notes > summary:hover { color: var(--ink); }
       .notes-tag {
-        font-family: "IBM Plex Mono", monospace; font-size: 9.5px; font-weight: 600;
+        font-family: "Geist Mono", monospace; font-size: 9.5px; font-weight: 600;
         letter-spacing: 0.07em; background: var(--accent-soft); color: var(--accent-ink);
         padding: 3px 7px; border-radius: 5px;
       }
@@ -349,8 +349,8 @@
       /* ── charts ─────────────────────────────────────────────────────────── */
       svg.chart { width: 100%; display: block; overflow: visible; }
       .gridline { stroke: var(--grid); stroke-width: 1; }
-      .axis-label { fill: var(--text-3); font-size: 10px; font-family: "IBM Plex Mono", monospace; }
-      .axis-strong { fill: var(--text-2); font-size: 10.5px; font-family: "IBM Plex Mono", monospace; font-weight: 500; }
+      .axis-label { fill: var(--text-3); font-size: 10px; font-family: "Geist Mono", monospace; }
+      .axis-strong { fill: var(--text-2); font-size: 10.5px; font-family: "Geist Mono", monospace; font-weight: 500; }
       .mark { cursor: pointer; }
       .mark:hover { opacity: 0.82; }
 
@@ -363,12 +363,12 @@
         transition: opacity 0.08s ease; max-width: 260px;
         background: var(--ink); color: var(--page);
         border-radius: 9px; padding: 9px 11px;
-        font-family: "IBM Plex Mono", monospace; font-size: 11.5px; line-height: 1.55;
+        font-family: "Geist Mono", monospace; font-size: 11.5px; line-height: 1.55;
         box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
       }
       :root[data-theme="dark"] #tooltip { background: #2a2f38; color: #f2f5f9; }
       @media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) #tooltip { background: #2a2f38; color: #f2f5f9; } }
-      #tooltip .t-title { font-family: "Inter", sans-serif; font-weight: 600; margin-bottom: 3px; font-size: 12px; }
+      #tooltip .t-title { font-family: "Geist", sans-serif; font-weight: 600; margin-bottom: 3px; font-size: 12px; }
       #tooltip .t-dim { opacity: 0.66; }
 
       /* ── tables ─────────────────────────────────────────────────────────── */
@@ -405,12 +405,12 @@
         text-align: left; font-size: 10px; font-weight: 600; letter-spacing: 0.05em;
         text-transform: uppercase; color: var(--text-3);
         padding: 9px 12px; border-bottom: 1px solid var(--line);
-        font-family: "IBM Plex Mono", monospace; white-space: nowrap;
+        font-family: "Geist Mono", monospace; white-space: nowrap;
       }
       table.dtable td { padding: 8px 12px; border-bottom: 1px solid var(--line-2); vertical-align: middle; }
       table.dtable tbody tr:last-child td { border-bottom: none; }
       table.dtable td.num, table.dtable th.num {
-        text-align: right; font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums;
+        text-align: right; font-family: "Geist Mono", monospace; font-variant-numeric: tabular-nums;
         white-space: nowrap;
       }
       table.dtable td.num { color: var(--text-2); }
@@ -444,7 +444,7 @@
 
       .pill {
         display: inline-block; padding: 2px 7px; border-radius: 20px;
-        font-size: 10.5px; font-weight: 600; font-family: "IBM Plex Mono", monospace;
+        font-size: 10.5px; font-weight: 600; font-family: "Geist Mono", monospace;
         white-space: nowrap; flex: none;
       }
       .pill.good { background: var(--st-good-soft); color: var(--st-good); }
@@ -458,9 +458,9 @@
       .pill.top { background: #f5c344; color: #5c4400; }
       :root[data-theme="dark"] .pill.top { background: #a8760c; color: #fff3d6; }
       @media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) .pill.top { background: #a8760c; color: #fff3d6; } }
-      .pill.dist { font-family: "Inter", sans-serif; font-weight: 600; }
+      .pill.dist { font-family: "Geist", sans-serif; font-weight: 600; }
       .bid {
-        font-family: "IBM Plex Mono", monospace; font-size: 10.5px; color: var(--text-3);
+        font-family: "Geist Mono", monospace; font-size: 10.5px; color: var(--text-3);
         white-space: nowrap;
       }
 
@@ -502,7 +502,7 @@
         display: flex; align-items: center; justify-content: center;
         font-size: 10px; font-weight: 700; color: #fff;
       }
-      .insight b { font-family: "IBM Plex Mono", monospace; font-weight: 600; color: var(--ink); }
+      .insight b { font-family: "Geist Mono", monospace; font-weight: 600; color: var(--ink); }
 
       /* ── toolbar ────────────────────────────────────────────────────────── */
       .toolbar { display: flex; gap: 10px; align-items: center; margin: 12px 0; flex-wrap: wrap; }
@@ -514,7 +514,7 @@
       }
       .search::placeholder { color: var(--text-3); }
       .search:focus { outline: none; border-color: var(--accent); background: var(--panel); }
-      .count { font-size: 11.5px; color: var(--text-3); font-family: "IBM Plex Mono", monospace; white-space: nowrap; }
+      .count { font-size: 11.5px; color: var(--text-3); font-family: "Geist Mono", monospace; white-space: nowrap; }
 
       /* ── expand tree ────────────────────────────────────────────────────── */
       tr.expandable { cursor: pointer; }
@@ -548,7 +548,7 @@
       footer {
         margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--line);
         text-align: center; color: var(--text-3); font-size: 11px;
-        font-family: "IBM Plex Mono", monospace; line-height: 1.7;
+        font-family: "Geist Mono", monospace; line-height: 1.7;
       }
 
 
@@ -562,11 +562,11 @@
       .mcard::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px; background: var(--mc); }
       .mcard:hover { transform: translateY(-1px); border-color: var(--mc); }
       .mcard .mlabel {
-        font-family: "IBM Plex Mono", monospace; font-size: 10px; font-weight: 600;
+        font-family: "Geist Mono", monospace; font-size: 10px; font-weight: 600;
         letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-3);
       }
       .mcard .mval {
-        font-family: "Space Grotesk", sans-serif; font-size: 27px; font-weight: 700;
+        font-family: "Geist", sans-serif; font-size: 27px; font-weight: 700;
         line-height: 1.1; letter-spacing: -0.025em; margin-top: 5px; color: var(--ink);
       }
       .mcard .msub { font-size: 11px; color: var(--text-3); margin-top: 2px; }
@@ -582,16 +582,16 @@
       .dtrack { height: 15px; border-radius: 5px; background: var(--grid); overflow: hidden; display: flex; }
       .dseg { height: 100%; }
       .dseg + .dseg { box-shadow: -2px 0 0 var(--panel); }
-      .dval { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; font-weight: 500; color: var(--ink); text-align: right; }
+      .dval { font-family: "Geist Mono", monospace; font-size: 12.5px; font-weight: 500; color: var(--ink); text-align: right; }
 
       .crow { display: grid; grid-template-columns: minmax(96px, auto) 1fr minmax(44px, auto); gap: 12px; align-items: center; margin-bottom: 11px; }
       .crow:last-child { margin-bottom: 0; }
       .cname { font-size: 12.5px; font-weight: 500; text-align: right; white-space: nowrap; }
       .ctrack { height: 22px; border-radius: 6px; background: var(--grid); position: relative; }
       .cfill { height: 100%; border-radius: 6px; display: flex; align-items: center; justify-content: flex-end; padding-right: 7px; min-width: 3px; position: relative; }
-      .cpct { font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 700; color: #fff; white-space: nowrap; }
+      .cpct { font-family: "Geist Mono", monospace; font-size: 11px; font-weight: 700; color: #fff; white-space: nowrap; }
       .cpct.out { position: absolute; left: 100%; margin-left: 7px; color: var(--text-2); }
-      .cval { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; color: var(--text-2); text-align: right; }
+      .cval { font-family: "Geist Mono", monospace; font-size: 12.5px; color: var(--text-2); text-align: right; }
 
       /* ── month-over-month movers ────────────────────────────────────────── */
       /* The movers list holds at most MOVER_MAX rows. Reserve that height always,
@@ -610,8 +610,8 @@
         display: flex; align-items: center; justify-content: center; height: 100%;
         min-height: inherit; color: var(--text-3); font-size: 12.5px; text-align: center;
       }
-      .mvval { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; font-weight: 600; text-align: right; }
-      .mvraw { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--text-3); text-align: right; white-space: nowrap; }
+      .mvval { font-family: "Geist Mono", monospace; font-size: 12.5px; font-weight: 600; text-align: right; }
+      .mvraw { font-family: "Geist Mono", monospace; font-size: 11px; color: var(--text-3); text-align: right; white-space: nowrap; }
 
       th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
       th.sortable:hover { color: var(--ink); }
@@ -696,7 +696,193 @@
         .hero-sep { display: none; }
         .hero-spark { min-height: 96px; }
       }
-    </style>
+    /* ═══ Redesign layer — calm, dense product UI (Linear-inspired), one indigo accent ═══ */
+:root{
+  --ink:#15161a; --text-2:#4f535b; --text-3:#6b6f78;
+  --page:#f7f8f8; --panel:#ffffff; --panel-2:#f1f3f3; --line:#e4e7e7; --line-2:#eef0f0;
+  --accent:#0f8a6a; --accent-mark:#12a07a; --accent-soft:#e3f3ed; --accent-ink:#0a6b52;
+  --s1:#4a8fe0; --s2:#e07a45; --s3:#d4a21c;
+  --st-good:#2c9a58; --st-warn:#d9961a; --st-serious:#e0794f; --st-crit:#d4443c;
+  --st-good-soft:#e5f5ec; --st-warn-soft:#fbf1dc; --st-crit-soft:#fbe8e6;
+  --grid:#ececef; --topbar-bg:var(--page); --topbar-fg:var(--ink);
+  --shadow:0 18px 40px -22px rgba(16,40,34,.14); --radius:16px;
+  --font:"Geist","IBM Plex Sans Thai",system-ui,-apple-system,sans-serif;
+  --mono:"Geist Mono","IBM Plex Sans Thai",ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:where(:not([data-theme="light"])){
+    --ink:#ececee; --text-2:#a2a5ad; --text-3:#7d818a;
+    --page:#0d0f0f; --panel:#131515; --panel-2:#191c1c; --line:#222626; --line-2:#1b1e1e;
+    --accent:#2fbf95; --accent-mark:#34c9a0; --accent-soft:#0f2a23; --accent-ink:#6fdcbc;
+    --s1:#5b9cec; --s2:#e58a56; --s3:#dcae33;
+    --st-good:#3cb26b; --st-warn:#e0a33a; --st-crit:#e5554c;
+    --st-good-soft:#10261a; --st-warn-soft:#2a210f; --st-crit-soft:#2c1514;
+    --grid:#1b1d22; --shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#ececee; --text-2:#a2a5ad; --text-3:#7d818a;
+  --page:#0d0f0f; --panel:#131515; --panel-2:#191c1c; --line:#222626; --line-2:#1b1e1e;
+  --accent:#2fbf95; --accent-mark:#34c9a0; --accent-soft:#0f2a23; --accent-ink:#6fdcbc;
+  --s1:#5b9cec; --s2:#e58a56; --s3:#dcae33;
+  --st-good:#3cb26b; --st-warn:#e0a33a; --st-crit:#e5554c;
+  --st-good-soft:#10261a; --st-warn-soft:#2a210f; --st-crit-soft:#2c1514;
+  --grid:#1b1d22; --shadow:none;
+}
+html{scroll-behavior:smooth}
+body{font-family:var(--font);font-size:13.5px;letter-spacing:-0.003em;font-feature-settings:"ss01","cv11"}
+h1,h2,h3{font-family:var(--font);letter-spacing:-0.02em}
+.mono,.num{font-family:var(--mono)}
+::selection{background:color-mix(in srgb,var(--accent) 32%,transparent)}
+*{scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* header */
+.topbar{background:color-mix(in srgb,var(--page) 80%,transparent);-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);border-bottom:1px solid var(--line);padding:10px 28px}
+.brand h1{font-size:14.5px;font-weight:600;color:var(--ink);letter-spacing:-0.015em}
+.brand h1 span{color:var(--accent-ink)}
+.brand .sub{color:var(--text-3);font-family:var(--font);font-size:11.5px}
+.section-nav a{background:transparent;border:0;border-radius:6px;color:var(--text-2);font-size:12.5px;font-weight:500;padding:5px 10px;transition:background .15s,color .15s}
+.section-nav a:hover{background:var(--panel-2);color:var(--ink)}
+.topbar .meta{color:var(--text-3);font-family:var(--mono);font-size:11px}
+.theme-btn{background:transparent;border:1px solid var(--line);color:var(--text-2);border-radius:8px;transition:background .15s}
+.theme-btn:hover{background:var(--panel-2)}
+
+/* page rhythm — headings carry the structure, no chips or rules */
+.wrap{padding-top:22px}
+.section{margin-top:56px}
+.section-head{margin-bottom:16px;align-items:center}
+.section-head .eyebrow,.section-head .rule{display:none}
+.section-head h2{font-size:21px;font-weight:600;letter-spacing:-0.025em;text-wrap:balance}
+
+/* segmented controls */
+.top-tabs{display:inline-flex;gap:2px;padding:3px;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;margin-bottom:16px}
+.top-tab{border:0;background:transparent;box-shadow:none;border-radius:7px;padding:6px 14px;color:var(--text-2);font-weight:500;font-size:13px;transition:background .15s,color .15s,transform .1s}
+.top-tab:hover{color:var(--ink)}
+.top-tab:active{transform:scale(.98)}
+.top-tab .dot{display:none}
+.top-tab.active{background:var(--panel);color:var(--ink);box-shadow:0 0 0 1px var(--line),0 1px 2px rgba(0,0,0,.10)}
+#modeToggle{margin-left:0}
+.section>.top-tabs{margin-right:0}
+
+/* month cards */
+.months{gap:8px}
+.mcard{border-radius:10px;padding:12px 14px;box-shadow:none;background:var(--panel);transition:border-color .15s,background .15s}
+.mcard::before{inset:auto;top:13px;right:13px;width:7px;height:7px;border-radius:50%;background:var(--mc)}
+.mcard:hover{transform:none;border-color:var(--text-3)}
+.mcard .mlabel{font-family:var(--font);font-size:12px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--text-2)}
+.mcard .mval{font-family:var(--font);font-size:26px;font-weight:600;letter-spacing:-0.035em;margin-top:4px;font-variant-numeric:tabular-nums}
+.mcard .msub{font-size:11.5px}
+.mcard[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent);background:color-mix(in srgb,var(--accent) 6%,var(--panel))}
+.mcard[aria-pressed="true"] .mlabel{color:var(--accent-ink)}
+
+/* surfaces */
+.card,.hero,.tile{border-radius:var(--radius);box-shadow:var(--shadow)}
+.card{padding:20px 22px}
+.hero{padding:26px 28px}
+.hero-label,.tile .label{font-family:var(--font);font-size:12px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--text-2)}
+.hero-value{font-family:var(--font);font-size:52px;font-weight:600;letter-spacing:-0.045em;font-variant-numeric:tabular-nums}
+.tile .value{font-family:var(--font);font-size:26px;font-weight:600;letter-spacing:-0.035em;font-variant-numeric:tabular-nums}
+.tile{padding:16px 18px}
+.card h3{font-size:14.5px;font-weight:600;letter-spacing:-0.015em}
+.card-sub{color:var(--text-3)}
+.meter-track{height:6px;border:0;background:var(--panel-2)}
+.meter-legend{font-family:var(--mono);font-size:11px}
+
+/* data notes */
+details.notes{border-left:1px solid var(--line);border-radius:10px;background:var(--panel)}
+.notes-tag{font-family:var(--font);font-size:11px;font-weight:500;letter-spacing:0;background:var(--panel-2);color:var(--text-2);padding:2px 8px;border-radius:5px}
+
+/* insights */
+.insight{border-radius:10px}
+.insight b{font-family:var(--font);font-weight:600}
+
+/* tables */
+thead th,th{font-family:var(--font)!important;text-transform:none!important;letter-spacing:0!important;font-size:11.5px!important;font-weight:500!important;color:var(--text-3)!important}
+td.num,.num{font-variant-numeric:tabular-nums}
+tbody tr{transition:background .12s}
+tbody tr:hover{background:var(--panel-2)}
+
+/* pills / buttons */
+.sortbtns button,.linkbtn{border-radius:7px;transition:background .15s,border-color .15s,transform .1s}
+.sortbtns button:active{transform:scale(.97)}
+.sortbtns button.on{background:var(--ink);border-color:var(--ink);color:var(--page)}
+
+/* map */
+.map-list{border-radius:10px}
+.building-pin{font-family:var(--font)}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+@media (max-width:620px){
+  .tiles{grid-template-columns:1fr 1fr;gap:8px}
+  .tile{padding:14px}
+  .tile .value{font-size:21px}
+  .hero-value{font-size:44px}
+}
+
+/* ═══ round 2: structure — asymmetric bento, timeline month strip, row-style stats ═══ */
+.wrap{max-width:1320px}
+.controlbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.controlbar .top-tabs{margin:0}
+.section.first{margin-top:0}
+
+.bento{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(0,1fr);gap:16px;margin-top:16px;align-items:stretch}
+.bento .hero{margin:0!important;padding:30px 32px;flex-direction:column;gap:22px;flex-wrap:nowrap}
+.bento .hero-sep{display:none}
+.bento .hero-figure{display:grid;grid-template-columns:auto 1fr;column-gap:36px;align-items:end}
+.bento .hero-label{grid-column:1/-1}
+.bento .hero-value{grid-row:2;font-size:76px;letter-spacing:-0.055em;margin-top:2px}
+.bento .hero-note{grid-column:2;grid-row:2;align-self:end;margin:0 0 10px}
+.bento .meter{grid-column:1/-1;margin-top:18px}
+.bento .hero-right{min-width:0}
+.bento .tiles{margin:0!important;display:flex;flex-direction:column;gap:0;border-top:1px solid var(--line)}
+.bento .tile{background:transparent;border:0;border-bottom:1px solid var(--line);border-radius:0;box-shadow:none;padding:16px 4px;display:grid;grid-template-columns:1fr auto;grid-template-areas:"l v" "s v";column-gap:16px;align-items:center;flex:1}
+.bento .tile .label{grid-area:l}
+.bento .tile .value{grid-area:v;margin:0;font-size:30px;text-align:right}
+.bento .tile .sub{grid-area:s;margin:2px 0 0;max-width:30ch}
+
+/* month strip = timeline: each month carries its own relative-volume bar */
+.months{gap:10px}
+.mcard{padding:14px 14px 22px;border-radius:14px}
+.mcard::before{top:15px;right:14px}
+.mcard::after{content:"";position:absolute;left:14px;right:14px;bottom:11px;height:3px;border-radius:2px;
+  background:linear-gradient(90deg,var(--mc) var(--h,0%),var(--line) var(--h,0%));transform-origin:left;
+  animation:grow .9s cubic-bezier(.16,1,.3,1) both}
+@keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes rise{from{transform:translateY(10px);opacity:.01}to{transform:none;opacity:1}}
+.bento>*,.months,.insight-list{animation:rise .7s cubic-bezier(.16,1,.3,1) both}
+.bento>.hero{animation-delay:.05s}.bento>.tiles{animation-delay:.12s}.insight-list{animation-delay:.1s}
+
+/* lists read as ruled rows, not boxes */
+.insight{background:transparent;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:14px 4px}
+.insight-list{display:block;border-top:1px solid var(--line)}
+.insight-list>*{margin:0!important}
+
+/* second-level stat strips (Villages) become one ruled band */
+#sec-villages .tiles{gap:0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);grid-template-columns:repeat(4,1fr);margin-bottom:16px}
+#sec-villages .tile{background:transparent;border:0;border-right:1px solid var(--line);border-radius:0;box-shadow:none;padding:18px 20px}
+#sec-villages .tile:last-child{border-right:0}
+@media (max-width:1000px){
+  .bento{grid-template-columns:1fr}
+  .bento .hero-value{font-size:60px}
+  #sec-villages .tiles{grid-template-columns:1fr 1fr}
+  #sec-villages .tile:nth-child(2){border-right:0}
+  #sec-villages .tile:nth-child(-n+2){border-bottom:1px solid var(--line)}
+}
+@media (max-width:620px){
+  .bento .hero{padding:22px 20px}
+  .bento .hero-figure{grid-template-columns:1fr}
+  .bento .hero-note{grid-column:1;grid-row:3;margin:6px 0 0}
+  .bento .hero-value{font-size:54px}
+  .bento .tile .value{font-size:24px}
+}
+.bento .tile{align-content:center;row-gap:3px}
+.bento .tile .label{align-self:end}.bento .tile .sub{align-self:start}
+.notes-tag{white-space:nowrap}
+@media (max-width:620px){.hero-right{overflow-x:auto}.hero-spark{min-width:560px}}
+
+.bento>*,.bento .hero,.hero-right,.hero-figure{min-width:0}
+.bento .hero-right{max-width:100%}
+</style>
   </head>
   <body>
     <div class="topbar">
@@ -720,24 +906,23 @@
     </div>
 
     <div class="wrap">
-      <div class="top-tabs" id="viewToggle" style="margin-bottom: 16px">
+      <div class="controlbar"><div class="top-tabs" id="viewToggle">
         <button class="top-tab active" data-view="dashboard"><span class="dot"></span>Dashboard</button>
         <button class="top-tab" data-view="map"><span class="dot"></span>Map</button>
-      </div>
+      </div><div class="top-tabs" id="modeToggle">
+          <button class="top-tab active" data-mode="connect" title="Completed connections only (SOURCES = TOL-CONNECT)"><span class="dot"></span>Connect</button>
+          <button class="top-tab" data-mode="register" title="Every order booked, whatever it became -- connected, pending, cancelled or un-complete (SOURCES = TOL-REGISTER)"><span class="dot"></span>Register</button>
+        </div></div>
 
       <div id="dashboardView">
       <div class="section">
-        <div class="top-tabs" id="modeToggle">
-          <button class="top-tab active" data-mode="connect" title="Completed connections only (SOURCES = TOL-CONNECT)"><span class="dot"></span>Connect</button>
-          <button class="top-tab" data-mode="register" title="Every order booked, whatever it became -- connected, pending, cancelled or un-complete (SOURCES = TOL-REGISTER)"><span class="dot"></span>Register</button>
-        </div>
         <div class="months" id="monthCards"></div>
 
         <div class="sortbtns" id="statusFilter" hidden style="margin-top: 10px">
           <span class="sortlabel">Status</span>
         </div>
 
-        <div class="hero" style="margin-top: 14px">
+        <div class="bento"><div class="hero">
           <div class="hero-figure">
             <div class="hero-label" id="heroLabel">Installs</div>
             <div class="hero-value" id="heroGa"></div>
@@ -754,8 +939,9 @@
           </div>
         </div>
 
-        <div class="tiles" id="tiles" style="margin-top: 14px"></div>
+        <div class="tiles" id="tiles" ></div>
 
+        </div>
         <details class="notes" id="dataNotes">
           <summary><span class="notes-tag">DATA NOTES</span> <span id="notesSummary"></span></summary>
           <div class="notes-body" id="notesBody"></div>
@@ -763,12 +949,12 @@
       </div>
 
       <div class="section" id="sec-signal">
-        <div class="section-head"><span class="eyebrow">Signal</span><h2>What stands out</h2><div class="rule"></div></div>
+        <div class="section-head"><h2>What stands out</h2></div>
         <div class="insight-list" id="insights"></div>
       </div>
 
       <div class="section" id="sec-breakdown">
-        <div class="section-head"><span class="eyebrow">Breakdown</span><h2>Where the <span id="lblCameFrom">installs</span> came from</h2><div class="rule"></div></div>
+        <div class="section-head"><h2>Where the <span id="lblCameFrom">installs</span> came from</h2></div>
         <div class="grid g-2">
           <div class="card">
             <div class="card-head">
@@ -829,7 +1015,7 @@
       </div>
 
       <div class="section" id="sec-villages">
-        <div class="section-head"><span class="eyebrow">Villages</span><h2>Active FTTH base × new <span id="lblVillagesH2">installs</span></h2><div class="rule"></div></div>
+        <div class="section-head"><h2>Active FTTH base × new <span id="lblVillagesH2">installs</span></h2></div>
         <div class="tiles" id="ftthTiles"></div>
         <div class="card" style="margin-top: 14px">
           <div class="card-head"><div><h3>Buildings</h3><div class="card-sub" id="bldgSub"></div></div></div>
@@ -852,7 +1038,7 @@
       </div>
 
       <div class="section" id="sec-sellers">
-        <div class="section-head"><span class="eyebrow">Sellers</span><h2>Who sold into the cluster</h2><div class="rule"></div></div>
+        <div class="section-head"><h2>Who sold into the cluster</h2></div>
         <div class="card">
           <div class="card-head">
             <div><h3>Dealer territory</h3><div class="card-sub" id="territorySub"></div></div>
@@ -876,7 +1062,7 @@
       </div>
 
       <div id="mapView" hidden>
-        <div class="section-head"><span class="eyebrow">Map</span><h2>Where import leakage is concentrated</h2><div class="rule"></div></div>
+        <div class="section-head"><h2>Where import leakage is concentrated</h2></div>
         <div class="card" id="mapCard">
           <div class="card-head">
             <div><h3>Territory map</h3><div class="card-sub" id="mapSub"></div></div>
@@ -1038,7 +1224,7 @@
       const MKEYS = MONTHS.map((m) => m.key);
       const PROVINCE = DATA.meta.province;
       const CLUSTER = PROVINCE.split(":").pop().trim();
-      const MCOLORS = ["var(--s1)", "var(--s2)", "var(--s3)", "var(--accent-mark)", "#9166cc"];
+      const MCOLORS = ["var(--s1)", "var(--s2)", "var(--s3)", "var(--accent-mark)", "#c4678a"];
       const mcolor = (k) => MCOLORS[MKEYS.indexOf(k) % MCOLORS.length];
       const activeKeys = () => (SEL ? [SEL] : MKEYS);
       const activeMonths = () => (SEL ? MONTHS.filter((m) => m.key === SEL) : MONTHS);
@@ -1203,7 +1389,7 @@
         document.getElementById("monthCards").innerHTML = cards
           .map((c) =>
             "<button class='mcard' data-key='" + (c.key || "") + "' aria-pressed='" + (c.key === SEL) +
-            "' style='--mc:" + c.c + "'><div class='mlabel'>" + esc(c.label) +
+            "' style='--mc:" + c.c + ";--h:" + (c.key ? Math.round(100 * c.val / Math.max.apply(null, MONTHS.map(function (m) { return m.installs; }).concat(1))) : 0) + "%'><div class='mlabel'>" + esc(c.label) +
             (c.p ? " <span style='color:var(--st-warn)'>◷</span>" : "") + "</div><div class='mval'>" +
             fmt(c.val) + "</div><div class='msub'>" + c.sub + "</div></button>"
           )
@@ -1795,7 +1981,7 @@
       }
 
       const expBldg = new Set();
-      const DISTRICT_COLORS = ["var(--s1)", "var(--s2)", "var(--s3)", "var(--accent-mark)", "#9166cc"];
+      const DISTRICT_COLORS = ["var(--s1)", "var(--s2)", "var(--s3)", "var(--accent-mark)", "#c4678a"];
       const districtColor = (() => {
         const order = DATA.district.map((d) => d.name);
         return (name) => DISTRICT_COLORS[Math.max(order.indexOf(name), 0) % DISTRICT_COLORS.length];
@@ -2424,7 +2610,7 @@
       function renderDistrictAreas() {
         districtAreaLayer.clearLayers();
         Object.keys(DISTRICT_BOUNDARIES).forEach((name) => {
-          const color = districtColor(name);
+          const _dc = districtColor(name); const color = _dc.indexOf("var(") === 0 ? resolveColor(_dc) : _dc;
           L.geoJSON(
             { type: "Feature", geometry: DISTRICT_BOUNDARIES[name], properties: {} },
             { style: () => ({ color, weight: 3, dashArray: "8 6", fillColor: color, fillOpacity: 0.07, opacity: 0.95 }) }
