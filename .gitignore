@@ -5,3 +5,6 @@ __pycache__/
 # Raw exports + census (never published) and generated local outputs
 Data/
 Local/
+
+# local-only product notes
+/docs/
